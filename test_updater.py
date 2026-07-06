@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from urllib.error import URLError
 
 
 class UpdaterTests(unittest.TestCase):
@@ -57,6 +58,45 @@ class UpdaterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_update_manifest(json.dumps({"version": "1.4.0"}))
 
+    def test_fetch_manifest_retries_transient_network_failure(self):
+        from updater import fetch_update_manifest
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps({
+                    "version": "1.4.5",
+                    "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.5/HupTool_Release.zip",
+                }).encode("utf-8")
+
+        calls = []
+        logs = []
+
+        def flaky_urlopen(request, timeout=30):
+            calls.append((request.full_url, timeout))
+            if len(calls) == 1:
+                raise URLError("timed out")
+            return FakeResponse()
+
+        manifest = fetch_update_manifest(
+            "https://github.com/duclucky/huptool/releases/latest/download/latest.json",
+            urlopen_factory=flaky_urlopen,
+            attempts=2,
+            timeout_seconds=5,
+            sleep_func=lambda seconds: None,
+            log_callback=logs.append,
+        )
+
+        self.assertEqual(manifest.version, "1.4.5")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][1], 5)
+        self.assertIn("Thử lại", "\n".join(logs))
+
     def test_verify_sha256_rejects_mismatch(self):
         from updater import verify_file_sha256
 
@@ -69,6 +109,55 @@ class UpdaterTests(unittest.TestCase):
             self.assertTrue(verify_file_sha256(path, good_hash))
             with self.assertRaises(ValueError):
                 verify_file_sha256(path, "0" * 64)
+
+    def test_download_update_package_retries_transient_network_failure(self):
+        from updater import UpdateManifest, download_update_package
+
+        class FakeResponse:
+            def __init__(self):
+                self.sent = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, size=-1):
+                if self.sent:
+                    return b""
+                self.sent = True
+                return b"zip"
+
+        calls = []
+        logs = []
+
+        def flaky_urlopen(request, timeout=60):
+            calls.append((request.full_url, timeout))
+            if len(calls) == 1:
+                raise URLError("connection timed out")
+            return FakeResponse()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = UpdateManifest(
+                version="1.4.5",
+                zip_url="https://github.com/duclucky/huptool/releases/download/v1.4.5/HupTool_Release.zip",
+            )
+
+            path = download_update_package(
+                manifest,
+                tmp,
+                urlopen_factory=flaky_urlopen,
+                attempts=2,
+                timeout_seconds=20,
+                sleep_func=lambda seconds: None,
+                log_callback=logs.append,
+            )
+
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[0][1], 20)
+            self.assertTrue(os.path.exists(path))
+            self.assertIn("Thử lại", "\n".join(logs))
 
     def test_update_script_preserves_activation_and_user_data(self):
         from updater import PROTECTED_UPDATE_PATHS, write_update_script

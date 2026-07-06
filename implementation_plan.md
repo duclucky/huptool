@@ -188,3 +188,11 @@
 - [ ] Them test RED cho `build_ytdlp_download_command`: extractor args phai la `youtube:player_client=tv,web` va khong chua `android`/`ios`.
 - [ ] Doi extractor args sang TV first, web fallback.
 - [ ] Rebuild ZIP/manifest sau khi doi command tai.
+
+### Task 18: Retry GitHub App Update Network Calls
+
+- [ ] Xac minh loi update hien tai la timeout ket noi GitHub/Windows network backend, khong phai sai version/manifest.
+- [ ] Them test RED cho `fetch_update_manifest`: loi mang tam thoi lan dau phai retry va thanh cong lan sau.
+- [ ] Them test RED cho `download_update_package`: loi mang tam thoi lan dau phai retry va tai duoc ZIP lan sau.
+- [ ] Patch updater de retry manifest va ZIP, timeout dai hon, log ro tung lan thu lai.
+- [ ] Bump version release moi, rebuild ZIP, verify manifest SHA, push GitHub Release.

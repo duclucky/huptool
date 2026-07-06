@@ -1517,7 +1517,7 @@ BƯỚC 3: XUẤT FILE
                 self.log_queue.put(lambda: self.dl_status_lbl.configure(text="Chưa cấu hình URL cập nhật app.", text_color="red"))
                 return
 
-            manifest = fetch_update_manifest(manifest_url)
+            manifest = fetch_update_manifest(manifest_url, log_callback=self.append_dl_log)
             self.append_dl_log(f"[UPDATE] Bản mới nhất trên GitHub: v{manifest.version}")
             if not is_update_available(manifest.version, APP_VERSION):
                 self.log_queue.put(lambda: self.dl_status_lbl.configure(text="App đang là bản mới nhất.", text_color="#00FF00"))

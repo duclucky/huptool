@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from urllib import request as urllib_request
 
@@ -74,16 +75,43 @@ def parse_update_manifest(text):
     return UpdateManifest(version=version, zip_url=zip_url, sha256=sha256, notes=notes)
 
 
-def fetch_update_manifest(manifest_url, urlopen_factory=None):
+def fetch_update_manifest(
+    manifest_url,
+    urlopen_factory=None,
+    attempts=4,
+    timeout_seconds=45,
+    sleep_func=None,
+    log_callback=None,
+):
     manifest_url = (manifest_url or "").strip()
     if not manifest_url:
         raise ValueError("Chưa cấu hình URL manifest cập nhật")
 
     opener = urlopen_factory or urllib_request.urlopen
     req = urllib_request.Request(manifest_url, headers={"User-Agent": "HupTool-Updater/1.0"})
-    with opener(req, timeout=30) as response:
-        text = response.read().decode("utf-8")
-    return parse_update_manifest(text)
+    attempts = max(1, int(attempts or 1))
+    timeout_seconds = max(5, int(timeout_seconds or 45))
+    sleep = sleep_func or time.sleep
+    last_error = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            with opener(req, timeout=timeout_seconds) as response:
+                text = response.read().decode("utf-8")
+            return parse_update_manifest(text)
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            wait_seconds = min(10, 2 * attempt)
+            if log_callback:
+                log_callback(
+                    f"[UPDATE] Kết nối GitHub lỗi lần {attempt}/{attempts}: {exc}. "
+                    f"Thử lại sau {wait_seconds}s..."
+                )
+            sleep(wait_seconds)
+
+    raise last_error
 
 
 def verify_file_sha256(path, expected_sha256):
@@ -104,26 +132,53 @@ def verify_file_sha256(path, expected_sha256):
     return True
 
 
-def download_update_package(manifest, dest_dir, urlopen_factory=None, log_callback=None):
+def download_update_package(
+    manifest,
+    dest_dir,
+    urlopen_factory=None,
+    log_callback=None,
+    attempts=4,
+    timeout_seconds=120,
+    sleep_func=None,
+):
     os.makedirs(dest_dir, exist_ok=True)
     filename = os.path.basename(manifest.zip_url.split("?", 1)[0]) or f"HupTool_{manifest.version}.zip"
     dest_path = os.path.join(dest_dir, filename)
     opener = urlopen_factory or urllib_request.urlopen
     req = urllib_request.Request(manifest.zip_url, headers={"User-Agent": "HupTool-Updater/1.0"})
+    attempts = max(1, int(attempts or 1))
+    timeout_seconds = max(15, int(timeout_seconds or 120))
+    sleep = sleep_func or time.sleep
+    last_error = None
 
-    if log_callback:
-        log_callback(f"[UPDATE] Đang tải gói cập nhật: {filename}")
+    for attempt in range(1, attempts + 1):
+        try:
+            if log_callback:
+                log_callback(f"[UPDATE] Đang tải gói cập nhật: {filename} (lần {attempt}/{attempts})")
 
-    with opener(req, timeout=60) as response:
-        with open(dest_path + ".part", "wb") as f:
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-    os.replace(dest_path + ".part", dest_path)
-    verify_file_sha256(dest_path, manifest.sha256)
-    return dest_path
+            with opener(req, timeout=timeout_seconds) as response:
+                with open(dest_path + ".part", "wb") as f:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+            os.replace(dest_path + ".part", dest_path)
+            verify_file_sha256(dest_path, manifest.sha256)
+            return dest_path
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            wait_seconds = min(10, 2 * attempt)
+            if log_callback:
+                log_callback(
+                    f"[UPDATE] Tải gói lỗi lần {attempt}/{attempts}: {exc}. "
+                    f"Thử lại sau {wait_seconds}s..."
+                )
+            sleep(wait_seconds)
+
+    raise last_error
 
 
 def _powershell_array(values):
