@@ -1,6 +1,6 @@
 {
-  "version": "1.4.2",
-  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.2/HupTool_Release.zip",
-  "sha256": "3b17029191ea462dcb9f85faf9a02ecad41a212fc6f9dba327c165b6e8366ad3",
-  "notes": "HupTool v1.4.2 auto-launches the app updater so users do not need to run PowerShell manually."
+  "version": "1.4.3",
+  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.3/HupTool_Release.zip",
+  "sha256": "b2f81d30a3c471eaa836d5b5e3d43ead3499644a0d97e7018a0ba749fc817e3b",
+  "notes": "HupTool v1.4.3 clarifies download save paths, keeps yt-dlp downloads grouped by channel folder, and logs final Direct/Cobalt output paths."
 }

@@ -76,6 +76,17 @@ def build_ytdlp_download_command(
     return cmd
 
 
+def build_download_output_summary(out_dir):
+    selected_dir = os.path.abspath(out_dir)
+    ytdlp_template = os.path.join(selected_dir, "<ten_kenh>", "<so_thu_tu>.mp4")
+    direct_template = os.path.join(selected_dir, "<ten_file_video>")
+    return (
+        f"[SYSTEM] Thư mục đã chọn: {selected_dir}\n"
+        f"[SYSTEM] yt-dlp: {ytdlp_template}\n"
+        f"[SYSTEM] Direct/Cobalt: {direct_template}"
+    )
+
+
 def build_ytdlp_prescan_command(
     ytdlp_path,
     url,
@@ -1371,6 +1382,7 @@ BƯỚC 3: XUẤT FILE
             self.append_dl_log(f"[SYSTEM] FFmpeg: {os.path.dirname(ffmpeg_location)}")
         else:
             self.append_dl_log("[CẢNH BÁO] Không tìm thấy FFmpeg; chất lượng tải có thể bị giới hạn.")
+        self.append_dl_log(build_download_output_summary(out_dir))
         self.append_dl_log(f"[SYSTEM] Download queue: {build_queue_path(out_dir)}")
         if preferred_engine == "cobalt-local" and not cobalt_endpoint:
             self.append_dl_log("[CẢNH BÁO] Chưa nhập Cobalt endpoint; tự fallback về yt-dlp.")

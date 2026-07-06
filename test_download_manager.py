@@ -166,6 +166,38 @@ class DownloadManagerTests(unittest.TestCase):
                 self.assertEqual(f.read(), b"hello")
             self.assertEqual(store.get(job.key).status, "completed")
 
+    def test_direct_http_job_logs_full_output_path(self):
+        from download_manager import DownloadJob, DownloadManager, DownloadQueueStore
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, size=-1):
+                if getattr(self, "_sent", False):
+                    return b""
+                self._sent = True
+                return b"hello"
+
+        logs = []
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DownloadQueueStore(os.path.join(tmp, ".hup_download_queue.json"))
+            manager = DownloadManager(
+                store=store,
+                urlopen_factory=lambda request, timeout=30: FakeResponse(),
+                log_callback=logs.append,
+            )
+            job = DownloadJob(url="https://cdn.example.com/folder/video.mp4", out_dir=tmp, engine="direct-http")
+
+            result = manager.run_direct_http_job(job)
+
+            self.assertTrue(result.success)
+            self.assertIn(os.path.join(tmp, "video.mp4"), "\n".join(logs))
+
     def test_cobalt_response_parser_returns_single_download_url(self):
         from download_manager import parse_cobalt_download_response
 

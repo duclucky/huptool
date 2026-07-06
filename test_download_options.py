@@ -88,6 +88,27 @@ class DownloadOptionTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("-f") + 1], "bv*+ba/b")
         self.assertEqual(cmd[cmd.index("-S") + 1], "quality,res,fps,br")
 
+    def test_download_output_summary_shows_selected_folder_and_engine_paths(self):
+        from gui import build_download_output_summary
+
+        summary = build_download_output_summary(r"C:\Downloads")
+
+        self.assertIn(r"Thư mục đã chọn: C:\Downloads", summary)
+        self.assertIn(r"yt-dlp: C:\Downloads\<ten_kenh>\<so_thu_tu>.mp4", summary)
+        self.assertIn(r"Direct/Cobalt: C:\Downloads\<ten_file_video>", summary)
+
+    def test_download_command_saves_ytdlp_files_in_channel_subfolder(self):
+        from gui import build_ytdlp_download_command
+
+        cmd = build_ytdlp_download_command(
+            "yt-dlp.exe",
+            r"C:\Downloads",
+            "https://www.youtube.com/watch?v=example",
+        )
+        output_template = cmd[cmd.index("-o") + 1]
+
+        self.assertEqual(output_template, r"C:\Downloads\%(uploader)s\%(autonumber)d.%(ext)s")
+
 
 if __name__ == "__main__":
     unittest.main()

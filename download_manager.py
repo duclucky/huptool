@@ -315,7 +315,7 @@ class DownloadManager:
                         f.write(chunk)
             os.replace(part_path, output_path)
             self.store.mark(job.key, "completed", engine="direct-http")
-            self.log_callback(f"[DIRECT] Tải xong: {output_name}")
+            self.log_callback(f"[DIRECT] Tải xong: {os.path.abspath(output_path)}")
             return DownloadRunResult(success=True, has_new_video=True)
         except Exception as exc:
             message = str(exc)

@@ -164,3 +164,12 @@
 - [ ] Doi Cobalt local payload sang `videoQuality=max`.
 - [ ] Bump `APP_VERSION` len `1.4.1`, cap nhat `release/latest.json`/`latest.example.json`, rebuild zip va upload release moi de app updater nhan ra co ban moi.
 - [ ] Chay unit tests lien quan, syntax check, `scripts/check.ps1`, verify zip co `update_manifest_url.txt`, push code va GitHub Release.
+
+### Task 15: Make Download Save Location Explicit
+
+- [ ] Xac minh root cause user kho tim file: yt-dlp can luu vao thu muc con theo uploader trong `Noi luu Video`, con Direct HTTP luu thang vao thu muc goc.
+- [ ] Them test RED cho helper mo ta duong dan luu: log phai hien thu muc user chon, mau duong dan yt-dlp co thu muc con theo kenh, va mau direct.
+- [ ] Them test RED cho Direct HTTP: khi tai xong log full path output.
+- [ ] Them log dau batch download de user biet file se nam o dau truoc khi tai.
+- [ ] Doi Direct HTTP log tu chi ten file sang full path.
+- [ ] Chay unit tests lien quan, syntax check, va `scripts/check.ps1`.
