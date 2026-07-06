@@ -78,6 +78,7 @@ class UpdaterTests(unittest.TestCase):
                 app_dir=os.path.join(tmp, "HupTool"),
                 zip_path=os.path.join(tmp, "HupTool_1.4.0.zip"),
                 script_dir=tmp,
+                current_pid=1234,
             )
 
             with open(script_path, "r", encoding="utf-8") as f:
@@ -90,6 +91,24 @@ class UpdaterTests(unittest.TestCase):
             self.assertIn("license.dat", script)
             self.assertIn("ffmpeg_runtime.json", script)
             self.assertIn("Expand-Archive", script)
+            self.assertIn("Wait-Process -Id $CurrentPid", script)
+            self.assertIn("$CurrentPid = 1234", script)
+
+    def test_launch_update_script_uses_powershell_bypass(self):
+        from updater import launch_update_script
+
+        calls = []
+
+        class FakePopen:
+            def __init__(self, cmd, **kwargs):
+                calls.append((cmd, kwargs))
+
+        launch_update_script(r"C:\Temp\apply_huptool_update.ps1", popen_factory=FakePopen)
+
+        cmd, kwargs = calls[0]
+        self.assertEqual(cmd[:4], ["powershell", "-ExecutionPolicy", "Bypass", "-File"])
+        self.assertEqual(cmd[4], r"C:\Temp\apply_huptool_update.ps1")
+        self.assertIn("creationflags", kwargs)
 
 
 if __name__ == "__main__":

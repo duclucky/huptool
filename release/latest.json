@@ -1,6 +1,6 @@
 {
-  "version": "1.4.1",
-  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.1/HupTool_Release.zip",
-  "sha256": "7620b9edce3744d0a5b8cd1b8ad1ee6c3a944fd97db1462de53c7cb85afedf44",
-  "notes": "HupTool v1.4.1 downloads best available quality without a 1080p cap; Cobalt local uses videoQuality=max."
+  "version": "1.4.2",
+  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.2/HupTool_Release.zip",
+  "sha256": "3b17029191ea462dcb9f85faf9a02ecad41a212fc6f9dba327c165b6e8366ad3",
+  "notes": "HupTool v1.4.2 auto-launches the app updater so users do not need to run PowerShell manually."
 }

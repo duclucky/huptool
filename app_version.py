@@ -1,7 +1,7 @@
 import os
 
 
-APP_VERSION = "1.4.1"
+APP_VERSION = "1.4.2"
 DEFAULT_UPDATE_MANIFEST_URL = os.environ.get("HUP_UPDATE_MANIFEST_URL", "").strip()
 
 

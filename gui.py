@@ -20,6 +20,7 @@ from updater import (
     download_update_package,
     fetch_update_manifest,
     is_update_available,
+    launch_update_script,
     write_update_script,
 )
 
@@ -1513,11 +1514,13 @@ BƯỚC 3: XUẤT FILE
 
             updates_dir = os.path.join(get_app_dir(), "updates")
             package_path = download_update_package(manifest, updates_dir, log_callback=self.append_dl_log)
-            script_path = write_update_script(get_app_dir(), package_path, updates_dir)
+            script_path = write_update_script(get_app_dir(), package_path, updates_dir, current_pid=os.getpid())
             self.append_dl_log(f"[UPDATE] Đã tải gói: {package_path}")
             self.append_dl_log(f"[UPDATE] Script cập nhật: {script_path}")
-            self.append_dl_log("[UPDATE] Đóng tool rồi chạy script này bằng PowerShell để áp dụng. license.dat sẽ được giữ nguyên.")
-            self.log_queue.put(lambda: self.dl_status_lbl.configure(text=f"Đã tải bản v{manifest.version}. Đóng tool rồi chạy script update.", text_color="#00FF00"))
+            launch_update_script(script_path)
+            self.append_dl_log("[UPDATE] Đang mở trình cập nhật. Tool sẽ tự đóng để áp dụng bản mới; license.dat sẽ được giữ nguyên.")
+            self.log_queue.put(lambda: self.dl_status_lbl.configure(text=f"Đang cập nhật lên v{manifest.version}. Tool sẽ tự đóng.", text_color="#00FF00"))
+            self.log_queue.put(lambda: self.after(1200, self.destroy))
         except Exception as e:
             self.append_dl_log(f"[UPDATE] Lỗi cập nhật app: {e}")
             self.log_queue.put(lambda: self.dl_status_lbl.configure(text="Cập nhật app thất bại.", text_color="red"))

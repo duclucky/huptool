@@ -2,6 +2,8 @@ import hashlib
 import json
 import os
 import re
+import subprocess
+import sys
 from dataclasses import dataclass
 from urllib import request as urllib_request
 
@@ -128,16 +130,26 @@ def _powershell_array(values):
     return "@(" + ", ".join("'" + value.replace("'", "''") + "'" for value in values) + ")"
 
 
-def write_update_script(app_dir, zip_path, script_dir):
+def write_update_script(app_dir, zip_path, script_dir, current_pid=None):
     os.makedirs(script_dir, exist_ok=True)
     script_path = os.path.join(script_dir, "apply_huptool_update.ps1")
     protected = _powershell_array(PROTECTED_UPDATE_PATHS)
+    current_pid_value = int(current_pid or 0)
     content = f"""$ErrorActionPreference = 'Stop'
 $AppDir = {json.dumps(os.path.abspath(app_dir))}
 $ZipPath = {json.dumps(os.path.abspath(zip_path))}
+$CurrentPid = {current_pid_value}
 $Protected = {protected}
 $StageDir = Join-Path ([System.IO.Path]::GetDirectoryName($ZipPath)) 'staging_update'
 $ExtractDir = Join-Path $StageDir 'extract'
+
+if ($CurrentPid -gt 0) {{
+    try {{
+        Wait-Process -Id $CurrentPid -Timeout 60
+    }} catch {{
+        Start-Sleep -Seconds 3
+    }}
+}}
 
 if (Test-Path -LiteralPath $StageDir) {{
     Remove-Item -LiteralPath $StageDir -Recurse -Force
@@ -169,3 +181,10 @@ Write-Host 'Update applied. license.dat and user data were preserved.'
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(content)
     return script_path
+
+
+def launch_update_script(script_path, popen_factory=None):
+    cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", script_path]
+    creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    popen = popen_factory or subprocess.Popen
+    return popen(cmd, creationflags=creation_flags)
