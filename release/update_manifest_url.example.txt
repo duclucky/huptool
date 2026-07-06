@@ -1,0 +1,1 @@
+https://github.com/example-owner/example-repo/releases/latest/download/latest.json

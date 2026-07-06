@@ -1,0 +1,7 @@
+This application may include FFmpeg binaries to process video and audio.
+FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
+The FFmpeg binaries bundled with this software are free software licensed under the LGPL (Lesser General Public License) or GPL (General Public License), depending on the exact build provided.
+You can download the FFmpeg source code and view the full licenses at https://ffmpeg.org/
+
+This application does not claim ownership over FFmpeg.
+Please refer to the FFmpeg website for more information regarding its licensing terms.

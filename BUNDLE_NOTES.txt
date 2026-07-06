@@ -1,0 +1,27 @@
+Thời gian tạo bundle: 2026-06-27 09:54:09
+Đường dẫn thư mục project: C:\Users\TBC\.ai_video_processor_profile\ai_video_processor_source
+Danh sách file đã copy:
+session_links.json
+AGENTS.md
+ai_analyzer.py
+AI_Video_Processor.spec
+config.py
+crash_log.txt
+GEMINI.md
+gui.py
+login_gemini.py
+main.py
+metadata_manager.py
+requirements.txt
+run_analyzer.py
+SETUP.md
+start_chrome.py
+test_out.txt
+test_run.py
+video_processor.py
+
+Danh sách file quan trọng bị thiếu:
+README.md
+
+Ghi chú: Bundle này dùng để gửi cho ChatGPT phân tích logic app, không chứa video/output/venv/dist.
+Các file chứa thông tin nhạy cảm (.env thật, tokens, api keys) đã được loại bỏ.

@@ -1,0 +1,171 @@
+import hashlib
+import json
+import os
+import re
+from dataclasses import dataclass
+from urllib import request as urllib_request
+
+
+PROTECTED_UPDATE_PATHS = (
+    "license.dat",
+    "ffmpeg_runtime.json",
+    "input_videos",
+    "output_videos",
+    ".hup_download_queue.json",
+    "download_history.txt",
+    "session_links.json",
+)
+
+
+@dataclass
+class UpdateManifest:
+    version: str
+    zip_url: str
+    sha256: str = ""
+    notes: str = ""
+
+
+def _version_parts(version):
+    parts = []
+    for raw in re.split(r"[.\-+]", (version or "").strip().lstrip("vV")):
+        if raw.isdigit():
+            parts.append(int(raw))
+        elif raw:
+            parts.append(0)
+    while len(parts) < 3:
+        parts.append(0)
+    return parts[:3]
+
+
+def compare_versions(left, right):
+    left_parts = _version_parts(left)
+    right_parts = _version_parts(right)
+    if left_parts < right_parts:
+        return -1
+    if left_parts > right_parts:
+        return 1
+    return 0
+
+
+def is_update_available(remote_version, current_version):
+    return compare_versions(current_version, remote_version) < 0
+
+
+def parse_update_manifest(text):
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Manifest JSON không hợp lệ: {exc}") from exc
+
+    version = str(data.get("version", "")).strip()
+    zip_url = str(data.get("zip_url", "")).strip()
+    sha256 = str(data.get("sha256", "")).strip().lower()
+    notes = str(data.get("notes", "")).strip()
+
+    if not version:
+        raise ValueError("Manifest thiếu version")
+    if not zip_url:
+        raise ValueError("Manifest thiếu zip_url")
+    if sha256 and not re.fullmatch(r"[0-9a-f]{64}", sha256):
+        raise ValueError("Manifest sha256 không hợp lệ")
+
+    return UpdateManifest(version=version, zip_url=zip_url, sha256=sha256, notes=notes)
+
+
+def fetch_update_manifest(manifest_url, urlopen_factory=None):
+    manifest_url = (manifest_url or "").strip()
+    if not manifest_url:
+        raise ValueError("Chưa cấu hình URL manifest cập nhật")
+
+    opener = urlopen_factory or urllib_request.urlopen
+    req = urllib_request.Request(manifest_url, headers={"User-Agent": "HupTool-Updater/1.0"})
+    with opener(req, timeout=30) as response:
+        text = response.read().decode("utf-8")
+    return parse_update_manifest(text)
+
+
+def verify_file_sha256(path, expected_sha256):
+    expected_sha256 = (expected_sha256 or "").strip().lower()
+    if not expected_sha256:
+        return True
+
+    sha = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            sha.update(chunk)
+    actual = sha.hexdigest()
+    if actual != expected_sha256:
+        raise ValueError(f"SHA256 không khớp: expected={expected_sha256} actual={actual}")
+    return True
+
+
+def download_update_package(manifest, dest_dir, urlopen_factory=None, log_callback=None):
+    os.makedirs(dest_dir, exist_ok=True)
+    filename = os.path.basename(manifest.zip_url.split("?", 1)[0]) or f"HupTool_{manifest.version}.zip"
+    dest_path = os.path.join(dest_dir, filename)
+    opener = urlopen_factory or urllib_request.urlopen
+    req = urllib_request.Request(manifest.zip_url, headers={"User-Agent": "HupTool-Updater/1.0"})
+
+    if log_callback:
+        log_callback(f"[UPDATE] Đang tải gói cập nhật: {filename}")
+
+    with opener(req, timeout=60) as response:
+        with open(dest_path + ".part", "wb") as f:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+    os.replace(dest_path + ".part", dest_path)
+    verify_file_sha256(dest_path, manifest.sha256)
+    return dest_path
+
+
+def _powershell_array(values):
+    return "@(" + ", ".join("'" + value.replace("'", "''") + "'" for value in values) + ")"
+
+
+def write_update_script(app_dir, zip_path, script_dir):
+    os.makedirs(script_dir, exist_ok=True)
+    script_path = os.path.join(script_dir, "apply_huptool_update.ps1")
+    protected = _powershell_array(PROTECTED_UPDATE_PATHS)
+    content = f"""$ErrorActionPreference = 'Stop'
+$AppDir = {json.dumps(os.path.abspath(app_dir))}
+$ZipPath = {json.dumps(os.path.abspath(zip_path))}
+$Protected = {protected}
+$StageDir = Join-Path ([System.IO.Path]::GetDirectoryName($ZipPath)) 'staging_update'
+$ExtractDir = Join-Path $StageDir 'extract'
+
+if (Test-Path -LiteralPath $StageDir) {{
+    Remove-Item -LiteralPath $StageDir -Recurse -Force
+}}
+New-Item -ItemType Directory -Force -Path $ExtractDir | Out-Null
+Expand-Archive -LiteralPath $ZipPath -DestinationPath $ExtractDir -Force
+
+$SourceRoot = $ExtractDir
+$nested = Get-ChildItem -LiteralPath $ExtractDir -Directory | Where-Object {{ $_.Name -eq 'HupTool' }} | Select-Object -First 1
+if ($nested) {{
+    $SourceRoot = $nested.FullName
+}}
+
+Get-ChildItem -LiteralPath $SourceRoot -Force | ForEach-Object {{
+    $name = $_.Name
+    if ($Protected -contains $name) {{
+        Write-Host "Preserve $name"
+        return
+    }}
+    $target = Join-Path $AppDir $name
+    if (Test-Path -LiteralPath $target) {{
+        Remove-Item -LiteralPath $target -Recurse -Force
+    }}
+    Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse -Force
+}}
+
+Write-Host 'Update applied. license.dat and user data were preserved.'
+"""
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return script_path
