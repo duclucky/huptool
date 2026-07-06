@@ -1,0 +1,1 @@
+https://github.com/duclucky/huptool/releases/latest/download/latest.json

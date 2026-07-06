@@ -152,4 +152,5 @@
 - [ ] Them test RED cho semver compare, manifest parse, SHA mismatch, va script khong ghi de protected paths.
 - [ ] Them UI nho trong tab `Tai Video Tu Dong`: nut `CAP NHAT APP`, log vao download log box, khong anh huong nut cap nhat yt-dlp.
 - [ ] Them `release/latest.example.json` lam mau de push len GitHub Release/Pages; khong dua secret/key/license vao manifest.
+- [ ] Them `update_manifest_url.txt` that vao root app de PyInstaller dua vao zip, giup user co san URL cap nhat ma khong phai tu tao file.
 - [ ] Chay unit tests lien quan, syntax check, va `scripts/check.ps1`.

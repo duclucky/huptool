@@ -7,6 +7,14 @@ import unittest
 
 
 class UpdaterTests(unittest.TestCase):
+    def test_release_manifest_url_file_is_ready_for_packaging(self):
+        path = os.path.join(os.getcwd(), "update_manifest_url.txt")
+
+        self.assertTrue(os.path.exists(path))
+        with open(path, "r", encoding="utf-8") as f:
+            url = f.read().strip()
+        self.assertEqual(url, "https://github.com/duclucky/huptool/releases/latest/download/latest.json")
+
     def test_update_manifest_url_can_come_from_environment(self):
         old_value = os.environ.get("HUP_UPDATE_MANIFEST_URL")
         os.environ["HUP_UPDATE_MANIFEST_URL"] = "https://example.com/latest.json"
