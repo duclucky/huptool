@@ -184,6 +184,55 @@ class DownloadManagerTests(unittest.TestCase):
         self.assertIsNone(picker_url)
         self.assertIsNone(picker_filename)
 
+    def test_cobalt_job_requests_max_video_quality(self):
+        from download_manager import DownloadJob, DownloadManager, DownloadQueueStore
+
+        class JsonResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, size=-1):
+                return json.dumps({
+                    "status": "redirect",
+                    "url": "https://cdn.example.com/out.mp4",
+                    "filename": "out.mp4",
+                }).encode("utf-8")
+
+        class FileResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, size=-1):
+                if getattr(self, "_sent", False):
+                    return b""
+                self._sent = True
+                return b"video"
+
+        requests = []
+
+        def fake_urlopen(request, timeout=30):
+            requests.append(request)
+            if len(requests) == 1:
+                return JsonResponse()
+            return FileResponse()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DownloadQueueStore(os.path.join(tmp, ".hup_download_queue.json"))
+            manager = DownloadManager(store=store, urlopen_factory=fake_urlopen)
+            job = DownloadJob(url="https://www.tiktok.com/@user/video/123", out_dir=tmp, engine="cobalt-local")
+
+            result = manager.run_cobalt_job(job, "http://127.0.0.1:9000")
+
+            payload = json.loads(requests[0].data.decode("utf-8"))
+            self.assertTrue(result.success)
+            self.assertEqual(payload["videoQuality"], "max")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -331,7 +331,7 @@ class DownloadManager:
         self.store.mark(job.key, "running", engine="cobalt-local")
         payload = {
             "url": job.url,
-            "videoQuality": "1080",
+            "videoQuality": "max",
             "downloadMode": "auto",
             "youtubeVideoContainer": "mp4",
             "youtubeVideoCodec": "h264",

@@ -154,3 +154,13 @@
 - [ ] Them `release/latest.example.json` lam mau de push len GitHub Release/Pages; khong dua secret/key/license vao manifest.
 - [ ] Them `update_manifest_url.txt` that vao root app de PyInstaller dua vao zip, giup user co san URL cap nhat ma khong phai tu tao file.
 - [ ] Chay unit tests lien quan, syntax check, va `scripts/check.ps1`.
+
+### Task 14: Download Best Available Quality
+
+- [ ] Xac minh root cause video mo: helper yt-dlp dang cap `height<=1080` va sort `res:1080`, Cobalt local payload cung cap `videoQuality=1080`.
+- [ ] Them test RED cho `build_ytdlp_download_command`: khong con `height<=1080`, format phai la `bv*+ba/b`, sort phai uu tien `quality,res,fps,br`.
+- [ ] Them test RED cho Cobalt payload: `videoQuality` phai la `max`.
+- [ ] Doi yt-dlp command sang best available quality, giu `--merge-output-format mp4`, `--continue`, `--no-overwrites`, cookies va FFmpeg location.
+- [ ] Doi Cobalt local payload sang `videoQuality=max`.
+- [ ] Bump `APP_VERSION` len `1.4.1`, cap nhat `release/latest.json`/`latest.example.json`, rebuild zip va upload release moi de app updater nhan ra co ban moi.
+- [ ] Chay unit tests lien quan, syntax check, `scripts/check.ps1`, verify zip co `update_manifest_url.txt`, push code va GitHub Release.

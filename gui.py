@@ -50,8 +50,8 @@ def build_ytdlp_download_command(
         "--max-sleep-interval", "12",
         "--retries", "10",
         "--fragment-retries", "10",
-        "-S", "res:1080,ext:mp4:m4a",
-        "-f", "bv*[height<=1080]+ba/b[height<=1080]/b",
+        "-S", "quality,res,fps,br",
+        "-f", "bv*+ba/b",
         "--merge-output-format", "mp4",
         "-o", output_template,
     ]

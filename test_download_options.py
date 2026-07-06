@@ -53,7 +53,7 @@ class DownloadOptionTests(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--cookies") + 1], r"C:\cookies\youtube.txt")
         self.assertNotIn("--cookies-from-browser", cmd)
 
-    def test_download_command_resumes_and_prefers_1080p_with_ffmpeg(self):
+    def test_download_command_resumes_and_prefers_best_available_quality_with_ffmpeg(self):
         from gui import build_ytdlp_download_command
 
         cmd = build_ytdlp_download_command(
@@ -68,9 +68,25 @@ class DownloadOptionTests(unittest.TestCase):
         self.assertIn("--no-overwrites", cmd)
         self.assertIn("--ffmpeg-location", cmd)
         self.assertEqual(cmd[cmd.index("--ffmpeg-location") + 1], r"C:\Tools\ffmpeg")
-        self.assertEqual(cmd[cmd.index("-f") + 1], "bv*[height<=1080]+ba/b[height<=1080]/b")
+        self.assertEqual(cmd[cmd.index("-f") + 1], "bv*+ba/b")
         self.assertIn("-S", cmd)
-        self.assertEqual(cmd[cmd.index("-S") + 1], "res:1080,ext:mp4:m4a")
+        self.assertEqual(cmd[cmd.index("-S") + 1], "quality,res,fps,br")
+
+    def test_download_command_uses_best_available_quality_without_1080p_cap(self):
+        from gui import build_ytdlp_download_command
+
+        cmd = build_ytdlp_download_command(
+            "yt-dlp.exe",
+            r"C:\Downloads",
+            "https://www.youtube.com/watch?v=example",
+            ffmpeg_location=r"C:\Tools\ffmpeg\ffmpeg.exe",
+            node_available=False,
+        )
+        cmd_text = " ".join(cmd)
+
+        self.assertNotIn("height<=1080", cmd_text)
+        self.assertEqual(cmd[cmd.index("-f") + 1], "bv*+ba/b")
+        self.assertEqual(cmd[cmd.index("-S") + 1], "quality,res,fps,br")
 
 
 if __name__ == "__main__":
