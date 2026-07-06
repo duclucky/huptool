@@ -173,3 +173,18 @@
 - [ ] Them log dau batch download de user biet file se nam o dau truoc khi tai.
 - [ ] Doi Direct HTTP log tu chi ten file sang full path.
 - [ ] Chay unit tests lien quan, syntax check, va `scripts/check.ps1`.
+
+### Task 16: Harden App Updater Apply Step
+
+- [ ] Xac minh root cause nut update gay nham lan: script an nen, khong ghi log, khong ep process cu thoat neu con treo, va khong mo lai app sau khi copy.
+- [ ] Them test RED cho script updater: phai ghi `apply_huptool_update.log`, force stop PID cu khi timeout, va restart `HupTool.exe`.
+- [ ] Patch `write_update_script()` de log tung buoc, wait process cu, force stop khi timeout, copy ban moi, va start lai app.
+- [ ] Bump version release moi de app updater nhan ra co ban cap nhat.
+- [ ] Chay unit tests lien quan, syntax check, build ZIP, verify manifest SHA, push code va GitHub Release.
+
+### Task 17: Prefer Smart TV YouTube Client For Download Quality
+
+- [ ] Xac minh command hien tai dang dung ca `android,ios` nen co the bi lay stream mobile chat luong thap.
+- [ ] Them test RED cho `build_ytdlp_download_command`: extractor args phai la `youtube:player_client=tv,web` va khong chua `android`/`ios`.
+- [ ] Doi extractor args sang TV first, web fallback.
+- [ ] Rebuild ZIP/manifest sau khi doi command tai.

@@ -45,7 +45,7 @@ def build_ytdlp_download_command(
         "--download-archive", os.path.join(out_dir, "download_history.txt"),
         "--continue",
         "--no-overwrites",
-        "--extractor-args", "youtube:player_client=tv,android,ios",
+        "--extractor-args", "youtube:player_client=tv,web",
         "--sleep-requests", "5",
         "--sleep-interval", "5",
         "--max-sleep-interval", "12",

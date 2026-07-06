@@ -93,6 +93,9 @@ class UpdaterTests(unittest.TestCase):
             self.assertIn("Expand-Archive", script)
             self.assertIn("Wait-Process -Id $CurrentPid", script)
             self.assertIn("$CurrentPid = 1234", script)
+            self.assertIn("Stop-Process -Id $CurrentPid -Force", script)
+            self.assertIn("Start-Process -FilePath $ExePath", script)
+            self.assertIn("apply_huptool_update.log", script)
 
     def test_launch_update_script_uses_powershell_bypass(self):
         from updater import launch_update_script

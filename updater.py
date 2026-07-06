@@ -142,12 +142,26 @@ $CurrentPid = {current_pid_value}
 $Protected = {protected}
 $StageDir = Join-Path ([System.IO.Path]::GetDirectoryName($ZipPath)) 'staging_update'
 $ExtractDir = Join-Path $StageDir 'extract'
+$LogPath = Join-Path ([System.IO.Path]::GetDirectoryName($ZipPath)) 'apply_huptool_update.log'
+
+function Write-UpdateLog($Message) {{
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Message"
+    Add-Content -LiteralPath $LogPath -Value $line -Encoding UTF8
+    Write-Host $Message
+}}
 
 if ($CurrentPid -gt 0) {{
     try {{
+        Write-UpdateLog "Waiting for HupTool process $CurrentPid to exit..."
         Wait-Process -Id $CurrentPid -Timeout 60
     }} catch {{
-        Start-Sleep -Seconds 3
+        Write-UpdateLog "HupTool process did not exit in time; forcing it to close..."
+        try {{
+            Stop-Process -Id $CurrentPid -Force
+            Wait-Process -Id $CurrentPid -Timeout 10
+        }} catch {{
+            Start-Sleep -Seconds 3
+        }}
     }}
 }}
 
@@ -166,7 +180,7 @@ if ($nested) {{
 Get-ChildItem -LiteralPath $SourceRoot -Force | ForEach-Object {{
     $name = $_.Name
     if ($Protected -contains $name) {{
-        Write-Host "Preserve $name"
+        Write-UpdateLog "Preserve $name"
         return
     }}
     $target = Join-Path $AppDir $name
@@ -176,7 +190,12 @@ Get-ChildItem -LiteralPath $SourceRoot -Force | ForEach-Object {{
     Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse -Force
 }}
 
-Write-Host 'Update applied. license.dat and user data were preserved.'
+$ExePath = Join-Path $AppDir 'HupTool.exe'
+Write-UpdateLog 'Update applied. license.dat and user data were preserved.'
+if (Test-Path -LiteralPath $ExePath) {{
+    Write-UpdateLog "Restarting HupTool..."
+    Start-Process -FilePath $ExePath
+}}
 """
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(content)

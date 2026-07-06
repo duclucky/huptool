@@ -22,6 +22,21 @@ class DownloadOptionTests(unittest.TestCase):
         self.assertIn("--retries", cmd)
         self.assertIn("--fragment-retries", cmd)
 
+    def test_download_command_uses_tv_clients_instead_of_mobile_clients(self):
+        from gui import build_ytdlp_download_command
+
+        cmd = build_ytdlp_download_command(
+            "yt-dlp.exe",
+            r"C:\Downloads",
+            "https://www.youtube.com/watch?v=example",
+            node_available=False,
+        )
+
+        extractor_args = cmd[cmd.index("--extractor-args") + 1]
+        self.assertEqual(extractor_args, "youtube:player_client=tv,web")
+        self.assertNotIn("android", extractor_args)
+        self.assertNotIn("ios", extractor_args)
+
     def test_download_command_can_use_chrome_cookies(self):
         from gui import build_ytdlp_download_command
 
