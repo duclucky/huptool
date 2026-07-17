@@ -6,6 +6,7 @@ import random
 from video_processor import VideoProcessor
 from metadata_manager import MetadataManager
 from config import Config
+from offline_subtitler import OfflineSubtitler
 
 def ensure_dirs(input_dir, output_dir):
     if not os.path.exists(input_dir):
@@ -13,7 +14,45 @@ def ensure_dirs(input_dir, output_dir):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-def process_single_file(input_video, output_dir, mode, account, min_len, max_len):
+def apply_karaoke_subtitles_if_enabled(video_path, extra_args=None):
+    if not extra_args or not extra_args.get("subtitle_enabled"):
+        return True
+
+    final_path = os.path.abspath(video_path)
+    if not os.path.exists(final_path):
+        print(f"[SUB] Khong tim thay file de tao subtitle: {final_path}")
+        return False
+
+    folder = os.path.dirname(final_path)
+    base_name = os.path.basename(final_path)
+    temp_path = os.path.join(folder, f"subtitled_{base_name}")
+    counter = 1
+    while os.path.exists(temp_path):
+        name, ext = os.path.splitext(base_name)
+        temp_path = os.path.join(folder, f"subtitled_{name}_{counter}{ext}")
+        counter += 1
+
+    model_size = extra_args.get("subtitle_model_size", "medium")
+    device = extra_args.get("subtitle_device", "cuda")
+    compute_type = extra_args.get("subtitle_compute_type", "float16")
+
+    try:
+        print(f"[SUB] Dang tao sub karaoke: {base_name}")
+        subtitler = OfflineSubtitler(device=device, compute_type=compute_type)
+        subtitler.burn_subtitles(final_path, temp_path, model_size=model_size)
+        os.replace(temp_path, final_path)
+        print(f"[SUB] OK -> {base_name}")
+        return True
+    except Exception as e:
+        print(f"[SUB] Loi tao subtitle cho {base_name}: {e}")
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+        return False
+
+def process_single_file(input_video, output_dir, mode, account, min_len, max_len, extra_args=None):
     filename = os.path.basename(input_video)
     name_no_ext, ext = os.path.splitext(filename)
     print(f"\n--- Đang xử lý: {filename} ---")
@@ -34,6 +73,7 @@ def process_single_file(input_video, output_dir, mode, account, min_len, max_len
         total_parts = len(analysis_array)
         print(f"-> Tuyệt vời! AI tìm được {total_parts} đoạn Highlight đỉnh nhất.")
         
+        subtitle_failed = False
         for idx, analysis_result in enumerate(analysis_array):
             part_num = idx + 1
             raw_title = (
@@ -67,7 +107,8 @@ def process_single_file(input_video, output_dir, mode, account, min_len, max_len
                 hook_start=analysis_result.get('hook_start'),
                 hook_end=analysis_result.get('hook_end'),
                 hl_start=analysis_result.get('highlight_start'),
-                hl_end=analysis_result.get('highlight_end')
+                hl_end=analysis_result.get('highlight_end'),
+                subtitle_args=extra_args if extra_args and extra_args.get("subtitle_enabled") else None
             )
             
             if not success:
@@ -76,7 +117,6 @@ def process_single_file(input_video, output_dir, mode, account, min_len, max_len
                 
             print(f"[3/3] Làm mới Metadata & Hash cho Đoạn {part_num}...")
             meta_manager.clean_and_fake_metadata(temp_output, final_output)
-            
             if os.path.exists(temp_output):
                 try:
                     os.remove(temp_output)
@@ -84,7 +124,7 @@ def process_single_file(input_video, output_dir, mode, account, min_len, max_len
                     pass
             print(f"XONG ĐOẠN {part_num}: -> {os.path.basename(final_output)}")
             
-        return True
+        return not subtitle_failed
     else:
         # Chế độ wash-only chỉ nhả 1 file
         final_output = os.path.join(output_dir, f"washed_{filename}")
@@ -95,7 +135,12 @@ def process_single_file(input_video, output_dir, mode, account, min_len, max_len
             return True
             
         print("[1/2] Chạy Wash Engine (Làm mới video, không cắt)...")
-        success = processor.process_video(input_video, temp_output, mode="wash-only")
+        success = processor.process_video(
+            input_video,
+            temp_output,
+            mode="wash-only",
+            subtitle_args=extra_args if extra_args and extra_args.get("subtitle_enabled") else None,
+        )
         
         if not success:
             print(f"BỎ QUA: Lỗi Wash Engine cho file {filename}")
@@ -103,7 +148,6 @@ def process_single_file(input_video, output_dir, mode, account, min_len, max_len
             
         print("[2/2] Làm mới Metadata & Hash...")
         meta_manager.clean_and_fake_metadata(temp_output, final_output)
-        
         if os.path.exists(temp_output):
             try:
                 os.remove(temp_output)
@@ -242,12 +286,15 @@ def run_merge_batch(input_dir, output_dir, extra_args):
         temp_output = os.path.join(output_dir, f"temp_{safe_title}.mp4")
         final_output = os.path.join(output_dir, f"{safe_title}.mp4")
 
+        merge_kwargs = {"verbose": not merge_quiet_logs}
+        if extra_args and extra_args.get("subtitle_enabled"):
+            merge_kwargs["subtitle_args"] = extra_args
         success = processor.merge_and_wash(
             full_paths,
             temp_output,
             trim_min,
             trim_max,
-            verbose=not merge_quiet_logs,
+            **merge_kwargs,
         )
 
         if success:
@@ -322,7 +369,7 @@ def run_batch(input_dir, output_dir, mode, account, min_len, max_len, extra_args
     
     success_count = 0
     for input_file in input_files:
-        if process_single_file(input_file, output_dir, mode, account, min_len, max_len):
+        if process_single_file(input_file, output_dir, mode, account, min_len, max_len, extra_args):
             success_count += 1
             try:
                 os.remove(input_file)
@@ -343,13 +390,21 @@ if __name__ == "__main__":
     parser.add_argument("--mmax", type=int, default=0)
     parser.add_argument("--mtmin", type=float, default=5)
     parser.add_argument("--mtmax", type=float, default=10)
+    parser.add_argument("--subtitle", action="store_true")
+    parser.add_argument("--subtitle-model", default="medium", choices=["base", "small", "medium"])
+    parser.add_argument("--subtitle-device", default="cuda", choices=["cuda", "cpu", "auto"])
+    parser.add_argument("--subtitle-compute-type", default="float16", choices=["float16", "int8"])
     args = parser.parse_args()
     
     extra_args = {
         "merge_count": args.mcount,
         "merge_out_max": args.mmax,
         "merge_trim_min": args.mtmin,
-        "merge_trim_max": args.mtmax
+        "merge_trim_max": args.mtmax,
+        "subtitle_enabled": args.subtitle,
+        "subtitle_model_size": args.subtitle_model,
+        "subtitle_device": args.subtitle_device,
+        "subtitle_compute_type": args.subtitle_compute_type,
     }
     
     run_batch(Config.INPUT_DIR, Config.OUTPUT_DIR, args.mode, args.account, args.min, args.max, extra_args)

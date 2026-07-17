@@ -1,6 +1,6 @@
 {
-  "version": "1.4.5",
-  "zip_url": "https://github.com/example-owner/example-repo/releases/download/v1.4.5/HupTool_Release.zip",
-  "sha256": "3ecfb9b13e2f25e1cbe7b3e75dda6d2e05f78c61f42cccb1b4efdcb5ab64211a",
+  "version": "1.4.6",
+  "zip_url": "https://github.com/example-owner/example-repo/releases/download/v1.4.6/HupTool_Release.zip",
+  "sha256": "d47d4b7580a4ee400b4e6089f7a6986e93e790232637973451768abeb8b1224c",
   "notes": "GitHub release updater manifest for HupTool. Replace zip_url with the real release asset URL before publishing."
 }

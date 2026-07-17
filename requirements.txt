@@ -2,3 +2,4 @@ python-dotenv>=1.0.1
 customtkinter>=5.2.2
 pyinstaller>=6.10.0
 playwright>=1.42.0
+faster-whisper>=1.1.0

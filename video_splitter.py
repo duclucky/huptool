@@ -166,7 +166,7 @@ class VideoSplitter:
             split_point = max(min_end, min(float(split_point), max_end))
 
             remaining = duration - split_point
-            if remaining < min_tail and parts:
+            if remaining < min_tail:
                 parts.append(
                     {
                         "index": len(parts) + 1,
@@ -290,6 +290,8 @@ class VideoSplitter:
         silence_duration=0.4,
         add_hook=True,
         stop_callback=None,
+        output_callback=None,
+        subtitle_args=None,
     ):
         if not os.path.exists(video_path):
             raise FileNotFoundError(video_path)
@@ -326,13 +328,14 @@ class VideoSplitter:
             self._log(f"Hook: {hook_start:.2f}s -> {hook_end:.2f}s")
 
             output_path = self._safe_output_path(split_dir, f"video_part_{index:03d}.mp4")
-            if not self._render_part(video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook):
+            if not self._render_part(video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook, subtitle_args=subtitle_args):
                 raise RuntimeError(f"Render part {index} thất bại.")
 
             self._log(f"Output: {output_path}")
             manifest["parts"].append(
                 {
                     "file": os.path.basename(output_path),
+                    "path": os.path.abspath(output_path),
                     "start": part_start,
                     "end": part_end,
                     "hook_start": hook_start if add_hook else None,
@@ -340,6 +343,8 @@ class VideoSplitter:
                     "split_reason": part["split_reason"],
                 }
             )
+            if output_callback:
+                output_callback(os.path.abspath(output_path))
 
         if self._should_stop(stop_callback):
             raise RuntimeError("Đã dừng chia part theo yêu cầu người dùng.")
@@ -359,21 +364,68 @@ class VideoSplitter:
             counter += 1
         return candidate
 
-    def _render_part(self, video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook):
+    def _render_part(self, video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook, subtitle_args=None):
         has_audio = self.has_audio(video_path)
-        cmd, safe_out = self._build_render_command(
-            video_path,
-            output_path,
-            part_start,
-            part_end,
-            hook_start,
-            hook_end,
-            add_hook,
-            has_audio,
-        )
-        return self._run_with_fallback(cmd, safe_out)
+        subtitle_ass_path = None
+        try:
+            if self.processor._subtitle_enabled(subtitle_args):
+                input_args, audio_filter, audio_label = self._build_part_subtitle_audio(
+                    video_path,
+                    part_start,
+                    part_end,
+                    hook_start,
+                    hook_end,
+                    add_hook,
+                    has_audio,
+                )
+                subtitle_ass_path = self.processor._prepare_subtitle_ass_from_audio_filter(
+                    input_args,
+                    audio_filter,
+                    audio_label,
+                    os.path.dirname(output_path) or ".",
+                    subtitle_args,
+                )
+            cmd, safe_out = self._build_render_command(
+                video_path,
+                output_path,
+                part_start,
+                part_end,
+                hook_start,
+                hook_end,
+                add_hook,
+                has_audio,
+                subtitle_ass_path=subtitle_ass_path,
+            )
+            return self._run_with_fallback(cmd, safe_out)
+        finally:
+            self.processor._cleanup_paths([subtitle_ass_path])
 
-    def _build_render_command(self, video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook, has_audio):
+    def _build_part_subtitle_audio(self, video_path, part_start, part_end, hook_start, hook_end, add_hook, has_audio):
+        part_duration = max(0.001, float(part_end) - float(part_start))
+        hook_duration = max(0.0, float(hook_end) - float(hook_start)) if add_hook else 0.0
+        input_args = ["-i", self._safe_path(video_path)]
+        filter_parts = []
+        concat_inputs = ""
+        concat_count = 0
+        if add_hook and hook_duration > 0:
+            if has_audio:
+                filter_parts.append(f"[0:a]atrim=start={hook_start}:end={hook_end},asetpts=PTS-STARTPTS[sh]")
+            else:
+                filter_parts.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={hook_duration}[sh]")
+            concat_inputs += "[sh]"
+            concat_count += 1
+
+        if has_audio:
+            filter_parts.append(f"[0:a]atrim=start={part_start}:end={part_end},asetpts=PTS-STARTPTS[sp]")
+        else:
+            filter_parts.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={part_duration}[sp]")
+        concat_inputs += "[sp]"
+        concat_count += 1
+        filter_parts.append(f"{concat_inputs}concat=n={concat_count}:v=0:a=1[sacat]")
+        filter_parts.append(f"[sacat]{self.processor._build_audio_filters()}[a_sub]")
+        return input_args, "; ".join(filter_parts), "[a_sub]"
+
+    def _build_render_command(self, video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook, has_audio, subtitle_ass_path=None):
         w = Config.TARGET_WIDTH
         h = Config.TARGET_HEIGHT
         fps = getattr(Config, "VIDEO_FPS", 30)
@@ -440,6 +492,7 @@ class VideoSplitter:
 
         noise_filter = f"noise=alls={int(noise * 1000)}:allf=t," if noise and noise > 0 else ""
         v_speed = f"setpts={1 / speed}*PTS"
+        subtitle_filter = f",{self.processor._build_subtitle_filter(subtitle_ass_path)}" if subtitle_ass_path else ""
         filter_parts.append(
             f"[vcat]scale={w}:{h}:force_original_aspect_ratio=decrease,"
             f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1:1[fg_padded]"
@@ -457,7 +510,7 @@ class VideoSplitter:
             f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}:gamma={gamma},"
             f"vignette=angle={vignette},"
             f"{noise_filter}"
-            f"{v_speed},fps={fps}[v_out]"
+            f"{v_speed}{subtitle_filter},fps={fps}[v_out]"
         )
 
         atempo_val = speed / pitch_factor

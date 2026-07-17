@@ -2,7 +2,9 @@ import os
 import sys
 import subprocess
 import random
+import tempfile
 from config import Config, get_tool_path
+from offline_subtitler import OfflineSubtitler
 
 if sys.platform == "win32":
     CREATE_NO_WINDOW = 0x08000000
@@ -12,6 +14,114 @@ else:
 class VideoProcessor:
     def __init__(self):
         self._probe_cache = {}
+
+    def _subtitle_enabled(self, subtitle_args):
+        return bool(subtitle_args and subtitle_args.get("subtitle_enabled"))
+
+    def _subtitle_model_size(self, subtitle_args):
+        return (subtitle_args or {}).get("subtitle_model_size", "medium")
+
+    def _build_subtitle_filter(self, ass_path):
+        return OfflineSubtitler(log_callback=lambda _message: None).build_subtitle_filter(ass_path)
+
+    def _build_audio_filters(self):
+        speed = Config.SPEED_SHIFT
+        pitch_factor = Config.AUDIO_PITCH_FACTOR
+        atempo_val = speed / pitch_factor
+        return (
+            f"highpass=f={Config.AUDIO_HIGH_PASS},lowpass=f={Config.AUDIO_LOW_PASS},"
+            f"asetrate=r=44100*{pitch_factor},"
+            f"atempo={atempo_val},"
+            f"aresample=44100,"
+            f"aecho=1.0:0.95:{Config.AUDIO_ECHO_DELAY}:{Config.AUDIO_ECHO_DECAY},"
+            f"extrastereo=m=1.1"
+        )
+
+    def _cleanup_paths(self, paths):
+        for path in paths:
+            if not path:
+                continue
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception as e:
+                print(f"[SUB] Khong xoa duoc file tam {path}: {e}")
+
+    def _prepare_subtitle_ass_from_audio_filter(self, input_args, audio_filter_complex, audio_label, output_dir, subtitle_args):
+        if not self._subtitle_enabled(subtitle_args):
+            return None
+
+        os.makedirs(output_dir or ".", exist_ok=True)
+        fd_audio, temp_audio = tempfile.mkstemp(suffix=".wav", prefix="hup_sub_audio_", dir=output_dir or None)
+        fd_ass, temp_ass = tempfile.mkstemp(suffix=".ass", prefix="hup_sub_", dir=output_dir or None)
+        os.close(fd_audio)
+        os.close(fd_ass)
+
+        try:
+            cmd = [
+                get_tool_path("ffmpeg"),
+                "-y",
+                "-err_detect",
+                "ignore_err",
+                "-fflags",
+                "+genpts+discardcorrupt",
+                *input_args,
+                "-filter_complex",
+                audio_filter_complex,
+                "-map",
+                audio_label,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-f",
+                "wav",
+                temp_audio,
+            ]
+            print("[SUB] Dang tao audio tam cho subtitle...")
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, timeout=18000)
+            if result.returncode != 0:
+                stderr = result.stderr.decode("utf-8", errors="ignore")
+                raise RuntimeError(f"FFmpeg audio subtitle timeline failed: {stderr[-1200:]}")
+
+            subtitler = OfflineSubtitler(
+                device=(subtitle_args or {}).get("subtitle_device", "cuda"),
+                compute_type=(subtitle_args or {}).get("subtitle_compute_type", "float16"),
+                temp_dir=output_dir or None,
+            )
+            words = subtitler.transcribe_words(temp_audio, model_size=self._subtitle_model_size(subtitle_args))
+            if not words:
+                print("[SUB] Khong co word timestamp; bo qua subtitle cho doan nay.")
+                self._cleanup_paths([temp_ass])
+                return None
+            subtitler.write_ass_file(temp_ass, words)
+            print(f"[SUB] Da tao ASS subtitle: {os.path.basename(temp_ass)}")
+            return temp_ass
+        except Exception:
+            self._cleanup_paths([temp_ass])
+            raise
+        finally:
+            self._cleanup_paths([temp_audio])
+
+    def _build_process_subtitle_audio(self, input_file, mode, hook_start, hook_end, hl_start, hl_end, has_audio):
+        safe_input = self.get_safe_path(input_file)
+        input_args = ["-i", safe_input]
+        audio_src = "[0:a]" if has_audio else "[1:a]"
+        if not has_audio:
+            input_args.extend(["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"])
+
+        if mode == "auto":
+            filter_complex = (
+                f"{audio_src}atrim=start={hook_start}:end={hook_end},asetpts=PTS-STARTPTS[a_hook]; "
+                f"{audio_src}atrim=start={hl_start}:end={hl_end},asetpts=PTS-STARTPTS[a_hl]; "
+                f"[a_hook][a_hl]concat=n=2:v=0:a=1[a_concat]; "
+                f"[a_concat]{self._build_audio_filters()}[a_sub]"
+            )
+        else:
+            filter_complex = f"{audio_src}{self._build_audio_filters()}[a_sub]"
+
+        return input_args, filter_complex, "[a_sub]"
 
     def get_safe_path(self, path):
         if sys.platform != "win32":
@@ -104,17 +214,28 @@ class VideoProcessor:
             "-pix_fmt", "yuv420p"
         ]
 
-    def process_video(self, input_file, output_file, mode="auto", hook_start=0, hook_end=0, hl_start=0, hl_end=0):
+    def process_video(self, input_file, output_file, mode="auto", hook_start=0, hook_end=0, hl_start=0, hl_end=0, subtitle_args=None):
         if not os.path.exists(input_file):
             print(f"File không tồn tại: {input_file}")
             return False
-
         has_audio = self.has_audio_stream(input_file)
+        subtitle_ass_path = None
+        if self._subtitle_enabled(subtitle_args):
+            input_args, audio_filter, audio_label = self._build_process_subtitle_audio(
+                input_file, mode, hook_start, hook_end, hl_start, hl_end, has_audio
+            )
+            subtitle_ass_path = self._prepare_subtitle_ass_from_audio_filter(
+                input_args,
+                audio_filter,
+                audio_label,
+                os.path.dirname(output_file) or ".",
+                subtitle_args,
+            )
         
         # Thử chạy lần 1: Giữ nguyên âm thanh gốc (nếu có)
         success = self._run_ffmpeg_process(
             input_file, output_file, mode, hook_start, hook_end, hl_start, hl_end,
-            has_audio=has_audio, force_audio_source=None
+            has_audio=has_audio, force_audio_source=None, subtitle_ass_path=subtitle_ass_path
         )
         
         # Thử chạy lần 2 (Auto-Repair): Nếu lần 1 lỗi và file gốc có âm thanh, cố gắng trích xuất & sửa lỗi âm thanh
@@ -132,7 +253,7 @@ class VideoProcessor:
                     print("⚡ Đã sửa và trích xuất thành công âm thanh gốc sạch. Đang xử lý lại video...")
                     success = self._run_ffmpeg_process(
                         input_file, output_file, mode, hook_start, hook_end, hl_start, hl_end,
-                        has_audio=False, force_audio_source=temp_clean_audio
+                        has_audio=False, force_audio_source=temp_clean_audio, subtitle_ass_path=subtitle_ass_path
                     )
             finally:
                 # Dọn dẹp file âm thanh tạm
@@ -144,11 +265,13 @@ class VideoProcessor:
                 
             if success:
                 print("✅ Khôi phục thành công! Video đã được xử lý với âm thanh gốc đã được sửa lỗi.")
+                self._cleanup_paths([subtitle_ass_path])
                 return True
             
             # Nếu sửa âm thanh thất bại, cấm fallback sang âm thanh tĩnh. Ném lỗi!
             raise RuntimeError("❌ Không thể phục hồi âm thanh gốc bị hỏng quá nặng. Hủy bỏ do yêu cầu cấm fallback sang âm thanh tĩnh.")
                 
+        self._cleanup_paths([subtitle_ass_path])
         return success
 
     def extract_clean_audio(self, input_file, temp_audio_file):
@@ -194,7 +317,7 @@ class VideoProcessor:
 
         return False
 
-    def _run_ffmpeg_process(self, input_file, output_file, mode, hook_start, hook_end, hl_start, hl_end, has_audio, force_audio_source=None):
+    def _run_ffmpeg_process(self, input_file, output_file, mode, hook_start, hook_end, hl_start, hl_end, has_audio, force_audio_source=None, subtitle_ass_path=None):
         # Xác định nguồn âm thanh chính cho filter complex (luôn là [1:a] nếu dùng nguồn âm thanh ngoài)
         audio_src = "[1:a]" if (force_audio_source or not has_audio) else "[0:a]"
 
@@ -236,6 +359,7 @@ class VideoProcessor:
         )
         
         v_speed = f"setpts={1/speed}*PTS"
+        subtitle_filter = f",{self._build_subtitle_filter(subtitle_ass_path)}" if subtitle_ass_path else ""
 
         filter_complex = ""
         v_in = ""
@@ -273,7 +397,7 @@ class VideoProcessor:
             f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}:gamma={gamma},"
             f"vignette=angle={vignette},"
             f"{noise_filter}"
-            f"{v_speed}[v_out]"
+            f"{v_speed}{subtitle_filter}[v_out]"
         )
 
         # Cấu hình các cờ chống crash cho FFmpeg
@@ -395,8 +519,10 @@ class VideoProcessor:
             if result.returncode != 0:
                 print(f"FFmpeg thất bại hoàn toàn với mã thoát: {result.returncode}")
                 print(result.stderr.decode('utf-8', errors='ignore'))
+                self._cleanup_paths([subtitle_ass_path])
                 return False
                 
+            self._cleanup_paths([subtitle_ass_path])
             return True
         except Exception as e:
             print(f"Lỗi hệ thống khi thực thi FFmpeg: {e}")
@@ -547,7 +673,7 @@ class VideoProcessor:
                 print(f"Lỗi cắt {basename}: {e}")
         return success_count
                 
-    def merge_and_wash(self, video_list, output_path, trim_min=5, trim_max=10, verbose=True):
+    def merge_and_wash(self, video_list, output_path, trim_min=5, trim_max=10, verbose=True, subtitle_args=None):
         import random
         def log(message):
             if verbose:
@@ -568,6 +694,9 @@ class VideoProcessor:
         
         filter_complex = ""
         concat_inputs = ""
+        subtitle_input_args = []
+        subtitle_audio_parts = []
+        subtitle_concat_inputs = ""
         
         w = Config.TARGET_WIDTH
         h = Config.TARGET_HEIGHT
@@ -596,6 +725,7 @@ class VideoProcessor:
         for i, vid in enumerate(video_list):
             safe_vid = self.get_safe_path(vid)
             cmd.extend(['-i', safe_vid])
+            subtitle_input_args.extend(['-i', safe_vid])
             
             duration = self.get_video_duration(vid) or 10.0
             trim_cut = random.uniform(trim_min, trim_max)
@@ -605,14 +735,36 @@ class VideoProcessor:
             filter_complex += f"[{i}:v]trim=duration={target_duration},setpts=PTS-STARTPTS,scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1:1[fg_{i}]; "
             
             # Audio
-            if self.has_audio_stream(vid):
+            has_audio = self.has_audio_stream(vid)
+            if has_audio:
                 filter_complex += f"[{i}:a]atrim=duration={target_duration},asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[a_{i}]; "
+                subtitle_audio_parts.append(f"[{i}:a]atrim=duration={target_duration},asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[sub_a_{i}]")
             else:
                 filter_complex += f"anullsrc=channel_layout=stereo:sample_rate=44100:d={target_duration}[a_{i}]; "
+                subtitle_audio_parts.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={target_duration}[sub_a_{i}]")
                 
             concat_inputs += f"[fg_{i}][a_{i}]"
+            subtitle_concat_inputs += f"[sub_a_{i}]"
             
         N = len(video_list)
+        subtitle_ass_path = None
+        subtitle_filter = ""
+        if self._subtitle_enabled(subtitle_args):
+            subtitle_audio_filter = "; ".join(
+                subtitle_audio_parts
+                + [
+                    f"{subtitle_concat_inputs}concat=n={N}:v=0:a=1[sub_concat]",
+                    f"[sub_concat]{self._build_audio_filters()}[a_sub]",
+                ]
+            )
+            subtitle_ass_path = self._prepare_subtitle_ass_from_audio_filter(
+                subtitle_input_args,
+                subtitle_audio_filter,
+                "[a_sub]",
+                os.path.dirname(output_path) or ".",
+                subtitle_args,
+            )
+            subtitle_filter = f",{self._build_subtitle_filter(subtitle_ass_path)}"
         # Nối tất cả các luồng lại với nhau
         filter_complex += f"{concat_inputs}concat=n={N}:v=1:a=1[fg_concat][a_concat]; "
         
@@ -633,7 +785,7 @@ class VideoProcessor:
             f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}:gamma={gamma},"
             f"vignette=angle={vignette},"
             f"{noise_filter}"
-            f"{v_speed},fps={fps}[v_out]; "
+            f"{v_speed}{subtitle_filter},fps={fps}[v_out]; "
         )
         
         # 4. Âm thanh Wash

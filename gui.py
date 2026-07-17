@@ -437,6 +437,39 @@ class App(ctk.CTk):
         )
         self.split_delete_source_checkbox.grid(row=6, column=0, columnspan=2, padx=20, pady=(12, 0), sticky="w")
 
+        self.subtitle_frame = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
+        self.subtitle_frame.grid(row=11, column=0, padx=20, pady=(8, 0), sticky="ew")
+        self.subtitle_frame.grid_columnconfigure((0, 1), weight=1)
+
+        self.subtitle_enabled_var = ctk.BooleanVar(value=False)
+        self.subtitle_checkbox = ctk.CTkCheckBox(
+            self.subtitle_frame,
+            text="Tạo sub",
+            variable=self.subtitle_enabled_var,
+        )
+        self.subtitle_checkbox.grid(row=0, column=0, columnspan=2, sticky="w")
+
+        self.subtitle_model_var = ctk.StringVar(value="medium")
+        self.subtitle_model_label = ctk.CTkLabel(self.subtitle_frame, text="Model sub:", anchor="w")
+        self.subtitle_model_label.grid(row=1, column=0, pady=(6, 0), sticky="w")
+        self.subtitle_model_menu = ctk.CTkOptionMenu(
+            self.subtitle_frame,
+            values=["base", "small", "medium"],
+            variable=self.subtitle_model_var,
+            width=90,
+        )
+        self.subtitle_model_menu.grid(row=2, column=0, pady=(0, 0), sticky="w")
+
+        self.subtitle_device_var = ctk.StringVar(value="cuda")
+        self.subtitle_compute_var = ctk.StringVar(value="float16")
+        self.subtitle_device_menu = ctk.CTkOptionMenu(
+            self.subtitle_frame,
+            values=["cuda", "cpu", "auto"],
+            variable=self.subtitle_device_var,
+            width=90,
+        )
+        self.subtitle_device_menu.grid(row=2, column=1, pady=(0, 0), sticky="e")
+
         # Khởi tạo trạng thái ban đầu
         self.on_mode_change()
 
@@ -999,7 +1032,11 @@ BƯỚC 3: XUẤT FILE
             "split_silence_threshold": split_silence_threshold,
             "split_silence_duration": split_silence_duration,
             "split_add_hook": split_add_hook,
-            "split_delete_source": split_delete_source
+            "split_delete_source": split_delete_source,
+            "subtitle_enabled": bool(self.subtitle_enabled_var.get()),
+            "subtitle_model_size": self.subtitle_model_var.get(),
+            "subtitle_device": self.subtitle_device_var.get(),
+            "subtitle_compute_type": self.subtitle_compute_var.get(),
         }
 
         if len(folder_pairs) > 1:
@@ -1086,6 +1123,7 @@ BƯỚC 3: XUẤT FILE
                         silence_duration=extra_args.get("split_silence_duration", 0.4),
                         add_hook=extra_args.get("split_add_hook", True),
                         stop_callback=self.split_stop_event.is_set,
+                        subtitle_args=extra_args if extra_args.get("subtitle_enabled") else None,
                     )
                     completed += 1
                     split_log(f"Hoàn tất video: {os.path.basename(video_path)}\n")

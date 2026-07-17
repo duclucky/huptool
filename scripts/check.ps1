@@ -40,18 +40,21 @@ if ($ffmpegExists -and $ffprobeExists) {
 # 3. Kiem tra cac thu vien Python
 Write-Host "3. Kiem tra cac thu vien Python phu thuoc..."
 $requirements = @("dotenv", "customtkinter", "pyinstaller", "playwright")
+$importNames = @{
+    "dotenv" = "dotenv"
+    "customtkinter" = "customtkinter"
+    "pyinstaller" = "PyInstaller"
+    "playwright" = "playwright"
+}
 $missingLibs = @()
 
 foreach ($lib in $requirements) {
     Write-Host "   - Dang kiem tra import thu vien '$lib'..." -NoNewline
-    try {
-        if ($lib -eq "dotenv") {
-            python -c "import dotenv" 2>&1 | Out-Null
-        } else {
-            python -c "import $lib" 2>&1 | Out-Null
-        }
+    $importName = $importNames[$lib]
+    python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('$importName') else 1)" 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
         Write-Host " [OK]" -ForegroundColor Green
-    } catch {
+    } else {
         Write-Host " [THIEU]" -ForegroundColor Red
         $missingLibs += $lib
     }
@@ -72,8 +75,12 @@ Write-Host "4. Chay thu nghiem Unit Test (test_audio_repair.py)..."
 try {
     # Thiet lap bien moi truong ma hoa utf-8 cho dau ra
     $env:PYTHONIOENCODING="utf-8"
-    python -m unittest test_audio_repair.py
-    Write-Host "-> Ket qua chay Test: [PASS]" -ForegroundColor Green
+    python -m unittest discover -s scratch -p test_audio_repair.py
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "-> Ket qua chay Test: [PASS]" -ForegroundColor Green
+    } else {
+        Write-Host "-> Ket qua chay Test: [FAIL] hoac bo qua do thieu file video mau." -ForegroundColor Yellow
+    }
 } catch {
     Write-Host "-> Ket qua chay Test: [FAIL] hoac bo qua do thieu file video mau." -ForegroundColor Yellow
 }

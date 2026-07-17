@@ -65,6 +65,18 @@ class VideoSplitterPlanningTests(unittest.TestCase):
             ],
         )
 
+    def test_create_part_ranges_merges_tiny_tail_into_first_part(self):
+        splitter = StubSplitter([(12.0, "fallback")])
+
+        parts = splitter._create_part_ranges("input.mp4", 12.012, 10.0, 12.0, -35.0, 0.4)
+
+        self.assertEqual(
+            parts,
+            [
+                {"index": 1, "start": 0.0, "end": 12.012, "split_reason": "fallback_merged_tail"},
+            ],
+        )
+
     def test_find_loudest_window_uses_part_start_when_audio_missing(self):
         splitter = VideoSplitter(log_callback=None)
         splitter.has_audio = lambda _path: False
@@ -108,6 +120,39 @@ class VideoSplitterPlanningTests(unittest.TestCase):
                 )
 
         self.assertEqual(splitter.rendered, 1)
+
+    def test_split_with_hooks_calls_output_callback_for_rendered_part(self):
+        class OnePartSplitter(VideoSplitter):
+            def __init__(self):
+                super().__init__(log_callback=None)
+
+            def get_duration(self, _video_path):
+                return 70.0
+
+            def _create_part_ranges(self, *_args, **_kwargs):
+                return [
+                    {"index": 1, "start": 0.0, "end": 70.0, "split_reason": "final"},
+                ]
+
+            def find_loudest_window(self, _video_path, start, _end, hook_duration=3.0):
+                return start, start + hook_duration
+
+            def _render_part(self, _video_path, output_path, *_args, **_kwargs):
+                open(output_path, "w", encoding="utf-8").close()
+                return True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_path = os.path.join(tmpdir, "input.mp4")
+            open(video_path, "w", encoding="utf-8").close()
+            callback_paths = []
+
+            manifest = OnePartSplitter().split_with_hooks(
+                video_path,
+                os.path.join(tmpdir, "out"),
+                output_callback=callback_paths.append,
+            )
+
+        self.assertEqual(callback_paths, [manifest["parts"][0]["path"]])
 
 
 if __name__ == "__main__":

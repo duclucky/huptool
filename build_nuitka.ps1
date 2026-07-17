@@ -62,6 +62,18 @@ if (Test-Path "THIRD_PARTY_LICENSES") {
     Copy-Item -Recurse -Force "THIRD_PARTY_LICENSES" "release\HupTool\"
 }
 
+Write-Host "Copying environment setup files..."
+if (Test-Path "requirements.txt") {
+    Copy-Item -Force "requirements.txt" "release\HupTool\requirements.txt"
+}
+New-Item -ItemType Directory -Force -Path "release\HupTool\scripts" | Out-Null
+if (Test-Path "scripts\install_environment.ps1") {
+    Copy-Item -Force "scripts\install_environment.ps1" "release\HupTool\scripts\install_environment.ps1"
+}
+if (Test-Path "scripts\check.ps1") {
+    Copy-Item -Force "scripts\check.ps1" "release\HupTool\scripts\check.ps1"
+}
+
 Write-Host "Cleaning up sensitive files from release folder..."
 $sensitive = @("*.py", "*.pyc", "keygen.py", "keygen_gui.py", "*private*.pem", "ffmpeg_runtime.json", ".ai_merge_history.json", "input_videos", "output_videos")
 foreach ($s in $sensitive) {

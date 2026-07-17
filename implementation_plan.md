@@ -196,3 +196,65 @@
 - [ ] Them test RED cho `download_update_package`: loi mang tam thoi lan dau phai retry va tai duoc ZIP lan sau.
 - [ ] Patch updater de retry manifest va ZIP, timeout dai hon, log ro tung lan thu lai.
 - [ ] Bump version release moi, rebuild ZIP, verify manifest SHA, push GitHub Release.
+
+### Task 19: Offline Karaoke Subtitle Module
+
+- [x] Them module doc lap `offline_subtitler.py` dung `faster-whisper`, FFmpeg extract audio, tao ASS karaoke va burn subtitle.
+- [x] Khong chunk/split audio; extract 1 file WAV mono 16kHz tam.
+- [x] Lazy import `WhisperModel` de test/syntax khong fail khi chua cai model runtime.
+- [x] Them test cho ASS timestamp, escape text, karaoke tag va path quoting cua subtitle filter.
+- [x] Them `faster-whisper` vao requirements.
+- [x] Chay unit test lien quan, py_compile, va `scripts/check.ps1`.
+
+### Task 20: Global Karaoke Subtitle Pipeline Option
+
+- [x] Them test RED cho sidebar co tuy chon global `Tao sub karaoke`, model subtitle, va extra args subtitle.
+- [x] Them test RED cho helper `apply_karaoke_subtitles_if_enabled()` de render subtitle vao file output cuoi cung va noop khi tat option.
+- [x] Them test RED cho `VideoSplitter.split_with_hooks()` goi callback sau moi part render xong.
+- [x] Patch `main.py` de apply subtitle sau metadata cho wash-only, auto cut va merge-wash; neu subtitle fail thi bao loi va khong tinh output do la thanh cong.
+- [x] Patch `gui.py` de them UI subtitle global, truyen cau hinh vao `extra_args`, va apply subtitle cho tung split part bang callback.
+- [x] Patch `video_splitter.py` de ho tro `output_callback(output_path)` va ghi absolute path vao manifest.
+- [x] Chay unit tests lien quan, py_compile, va `scripts/check.ps1`.
+
+### Task 21: Single-Pass Subtitle Burn Optimization
+
+- [x] Them test RED cho `VideoProcessor._run_ffmpeg_process()` khi co `subtitle_ass_path` thi filter video co `subtitles=...` truoc label `[v_out]`.
+- [x] Them test RED cho `VideoSplitter._build_render_command()` khi co `subtitle_ass_path` thi filter video part co `subtitles=...` trong cung command render.
+- [x] Them test RED cho `process_single_file()` truyen `subtitle_args` vao `VideoProcessor.process_video()` va khong goi post-process `OfflineSubtitler.burn_subtitles()`.
+- [x] Patch `VideoProcessor` de tao audio WAV tam dung timeline output, transcribe/write ASS truoc render, chen ASS vao render filter, va cleanup WAV/ASS sau render.
+- [x] Patch `merge_and_wash()` de tao subtitle ASS dua tren durations da random trong lan merge hien tai, chen vao filter render chinh.
+- [x] Patch `VideoSplitter` de tao subtitle ASS tu audio timeline cua tung part/hook, chen vao command render part, va cleanup file tam.
+- [x] Patch `main.py`/`gui.py` de truyen `subtitle_args` vao renderer thay vi burn sub sau khi output da xong.
+- [x] Chay unit tests lien quan, py_compile, va `scripts/check.ps1`.
+
+### Task 22: Fix Environment Check Script False Errors
+
+- [x] Xac minh root cause `pyinstaller [THIEU]`: package cai dat dung nhung import name dung la `PyInstaller`.
+- [x] Xac minh root cause `ModuleNotFoundError: test_audio_repair`: file test nam trong `scratch/test_audio_repair.py`, script dang chay sai root.
+- [x] Them regression test cho `scripts/check.ps1` phai map `pyinstaller` -> `PyInstaller` va chay unittest discover trong `scratch`.
+- [x] Patch `scripts/check.ps1` de kiem tra import bang `importlib.util.find_spec()` va chay `python -m unittest discover -s scratch -p test_audio_repair.py`.
+- [x] Chay `test_check_script.py` va `scripts/check.ps1` de xac minh het false error.
+
+### Task 23: New User Environment Installer
+
+- [x] Them `scripts/install_environment.ps1` gom cac lenh can thiet: upgrade pip, `pip install -r requirements.txt`, `playwright install chromium`, va `scripts/check.ps1`.
+- [x] Patch `build_nuitka.ps1` de copy `requirements.txt`, `scripts/install_environment.ps1`, va `scripts/check.ps1` vao `release\HupTool`.
+- [x] Patch `AI_Video_Processor.spec` cho build thuong de include `requirements.txt`, `scripts`, va hidden imports subtitle runtime (`faster_whisper`, `ctranslate2`, `tokenizers`, `huggingface_hub`).
+- [x] Them regression test `test_environment_setup.py`.
+- [x] Chay regression tests, PowerShell parse check, va `scripts/check.ps1`.
+
+### Task 24: Preload Whisper Models In Environment Installer
+
+- [x] Them preload `faster-whisper` model vao `scripts/install_environment.ps1`.
+- [x] Mac dinh preload model `medium`.
+- [x] Cho phep override bang bien moi truong `HUP_WHISPER_MODELS`, vi du `tiny,base,medium`.
+- [x] Cho phep bo qua preload bang `HUP_WHISPER_MODELS=none`.
+- [x] Preload bang CPU int8 de chay duoc tren may khong co CUDA.
+- [x] Them regression test xac minh script co `HUP_WHISPER_MODELS`, `WhisperModel`, va `compute_type='int8'`.
+
+### Task 25: Package And Publish v1.4.6
+
+- [x] Bump `APP_VERSION` len `1.4.6`.
+- [x] Build PyInstaller release binh thuong, khong dung Nuitka.
+- [x] Nen `release\HupTool_Release.zip` va cap nhat SHA256 that vao manifest.
+- [ ] Upload GitHub Release `v1.4.6`, push code va manifest len GitHub.

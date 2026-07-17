@@ -1,6 +1,6 @@
 {
-  "version": "1.4.5",
-  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.5/HupTool_Release.zip",
-  "sha256": "3ecfb9b13e2f25e1cbe7b3e75dda6d2e05f78c61f42cccb1b4efdcb5ab64211a",
-  "notes": "HupTool v1.4.5 retries GitHub update checks and package downloads to handle transient connection timeouts."
+  "version": "1.4.6",
+  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.6/HupTool_Release.zip",
+  "sha256": "d47d4b7580a4ee400b4e6089f7a6986e93e790232637973451768abeb8b1224c",
+  "notes": "HupTool v1.4.6 adds offline subtitle generation, single-pass subtitle burn, and new user environment setup with Whisper model preload."
 }

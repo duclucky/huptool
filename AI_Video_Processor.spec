@@ -25,6 +25,10 @@ if os.path.exists('assets'):
     my_datas.append(('assets', 'assets'))
 if os.path.exists('update_manifest_url.txt'):
     my_datas.append(('update_manifest_url.txt', '.'))
+if os.path.exists('requirements.txt'):
+    my_datas.append(('requirements.txt', '.'))
+if os.path.exists('scripts'):
+    my_datas.append(('scripts', 'scripts'))
 
 tcl_root = os.path.join(python_base, 'tcl')
 for tcl_dir in ['tcl8.6', 'tk8.6']:
@@ -45,7 +49,14 @@ a = Analysis(
     pathex=[],
     binaries=my_binaries,
     datas=my_datas,
-    hiddenimports=['playwright', 'customtkinter'], # Giữ playwright và ctk nếu project phụ thuộc
+    hiddenimports=[
+        'playwright',
+        'customtkinter',
+        'faster_whisper',
+        'ctranslate2',
+        'tokenizers',
+        'huggingface_hub',
+    ],
     hookspath=['pyinstaller_hooks'],
     hooksconfig={},
     runtime_hooks=['pyi_tkinter_runtime_hook.py'],

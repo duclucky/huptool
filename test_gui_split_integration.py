@@ -67,6 +67,15 @@ class GuiSplitIntegrationTests(unittest.TestCase):
         self.assertIn("fetch_update_manifest", gui_source)
         self.assertIn("write_update_script", gui_source)
 
+    def test_sidebar_has_global_karaoke_subtitle_options(self):
+        gui_source = pathlib.Path("gui.py").read_text(encoding="utf-8")
+
+        self.assertIn("subtitle_enabled_var", gui_source)
+        self.assertIn("Tạo sub", gui_source)
+        self.assertIn("subtitle_model_var", gui_source)
+        self.assertIn('"subtitle_enabled"', gui_source)
+        self.assertIn('"subtitle_model_size"', gui_source)
+
 
 if __name__ == "__main__":
     unittest.main()
