@@ -257,4 +257,4 @@
 - [x] Bump `APP_VERSION` len `1.4.6`.
 - [x] Build PyInstaller release binh thuong, khong dung Nuitka.
 - [x] Nen `release\HupTool_Release.zip` va cap nhat SHA256 that vao manifest.
-- [ ] Upload GitHub Release `v1.4.6`, push code va manifest len GitHub.
+- [x] Upload GitHub Release `v1.4.6`, push code va manifest len GitHub.
