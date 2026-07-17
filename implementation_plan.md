@@ -267,7 +267,7 @@
 - [x] Doi default UI/CLI/subtitle pipeline sang `auto` thay vi `cuda`.
 - [x] Them log gon bang tieng Viet khi auto khong thay CUDA runtime va dang dung CPU int8.
 - [x] Chay unit tests lien quan va `scripts/check.ps1`.
-- [ ] Bump, package va publish ban fix `v1.4.7` de may khach update duoc.
+- [x] Bump, package va publish ban fix `v1.4.7` de may khach update duoc.
 
 ### Task 27: Make Split Stop Button Interrupt Current FFmpeg Render
 
