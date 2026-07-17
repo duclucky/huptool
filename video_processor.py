@@ -86,7 +86,7 @@ class VideoProcessor:
                 raise RuntimeError(f"FFmpeg audio subtitle timeline failed: {stderr[-1200:]}")
 
             subtitler = OfflineSubtitler(
-                device=(subtitle_args or {}).get("subtitle_device", "cuda"),
+                device=(subtitle_args or {}).get("subtitle_device", "auto"),
                 compute_type=(subtitle_args or {}).get("subtitle_compute_type", "float16"),
                 temp_dir=output_dir or None,
             )

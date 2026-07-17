@@ -460,7 +460,7 @@ class App(ctk.CTk):
         )
         self.subtitle_model_menu.grid(row=2, column=0, pady=(0, 0), sticky="w")
 
-        self.subtitle_device_var = ctk.StringVar(value="cuda")
+        self.subtitle_device_var = ctk.StringVar(value="auto")
         self.subtitle_compute_var = ctk.StringVar(value="float16")
         self.subtitle_device_menu = ctk.CTkOptionMenu(
             self.subtitle_frame,

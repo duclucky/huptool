@@ -91,6 +91,61 @@ class OfflineSubtitlerTests(unittest.TestCase):
         self.assertEqual(words, [SubtitleWord(text="hello", start=0.0, end=0.4)])
         self.assertEqual(calls, [("tiny", "cuda", "float16"), ("tiny", "cpu", "int8")])
 
+    def test_auto_device_skips_cuda_when_cuda_runtime_is_unavailable(self):
+        calls = []
+        logs = []
+
+        class CpuModel:
+            def transcribe(self, *_args, **_kwargs):
+                word = SimpleNamespace(word="hello", start=0.0, end=0.4)
+                segment = SimpleNamespace(words=[word])
+                return [segment], SimpleNamespace()
+
+        def factory(model_size, device, compute_type):
+            calls.append((model_size, device, compute_type))
+            if device == "cuda":
+                raise AssertionError("auto device should not try cuda when runtime check fails")
+            return CpuModel()
+
+        subtitler = OfflineSubtitler(
+            device="auto",
+            compute_type="float16",
+            whisper_model_factory=factory,
+            cuda_available_factory=lambda: False,
+            log_callback=logs.append,
+        )
+
+        words = subtitler.transcribe_words("dummy.wav", model_size="tiny")
+
+        self.assertEqual(words, [SubtitleWord(text="hello", start=0.0, end=0.4)])
+        self.assertEqual(calls, [("tiny", "cpu", "int8")])
+        self.assertTrue(any("CPU int8" in message for message in logs))
+
+    def test_cpu_device_uses_int8_even_if_compute_type_is_float16(self):
+        calls = []
+
+        class CpuModel:
+            def transcribe(self, *_args, **_kwargs):
+                word = SimpleNamespace(word="hello", start=0.0, end=0.4)
+                segment = SimpleNamespace(words=[word])
+                return [segment], SimpleNamespace()
+
+        def factory(model_size, device, compute_type):
+            calls.append((model_size, device, compute_type))
+            return CpuModel()
+
+        subtitler = OfflineSubtitler(
+            device="cpu",
+            compute_type="float16",
+            whisper_model_factory=factory,
+            log_callback=lambda _message: None,
+        )
+
+        words = subtitler.transcribe_words("dummy.wav", model_size="tiny")
+
+        self.assertEqual(words, [SubtitleWord(text="hello", start=0.0, end=0.4)])
+        self.assertEqual(calls, [("tiny", "cpu", "int8")])
+
     def test_float16_backend_error_is_treated_as_accelerator_fallback(self):
         self.assertTrue(
             OfflineSubtitler.is_accelerator_runtime_error(

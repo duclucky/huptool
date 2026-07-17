@@ -258,3 +258,22 @@
 - [x] Build PyInstaller release binh thuong, khong dung Nuitka.
 - [x] Nen `release\HupTool_Release.zip` va cap nhat SHA256 that vao manifest.
 - [x] Upload GitHub Release `v1.4.6`, push code va manifest len GitHub.
+
+### Task 26: Avoid CUDA DLL Error On Client Subtitle Generation
+
+- [x] Xac minh root cause: may khach thieu CUDA/cuBLAS runtime nhung GUI mac dinh `cuda/float16`, lam Whisper thu GPU truoc roi moi fallback CPU.
+- [x] Them regression test cho `device=auto`: neu CUDA runtime check fail thi khong goi `WhisperModel` voi `cuda`, chi dung `cpu/int8`.
+- [x] Them regression test cho `device=cpu`: du compute type dang la `float16` van ep ve `cpu/int8` de tranh backend error.
+- [x] Doi default UI/CLI/subtitle pipeline sang `auto` thay vi `cuda`.
+- [x] Them log gon bang tieng Viet khi auto khong thay CUDA runtime va dang dung CPU int8.
+- [x] Chay unit tests lien quan va `scripts/check.ps1`.
+- [ ] Bump, package va publish ban fix `v1.4.7` de may khach update duoc.
+
+### Task 27: Make Split Stop Button Interrupt Current FFmpeg Render
+
+- [x] Xac minh root cause: `VideoSplitter._run_with_fallback()` dung `subprocess.run()` timeout dai nen nut `Dung cat` chi co tac dung sau khi FFmpeg render xong part hien tai.
+- [x] Them regression test cho `_run_with_fallback(..., stop_callback=...)`: khi stop flag bat trong luc process dang chay thi kill process tree va raise loi dung cat.
+- [x] Truyen `stop_callback` tu `split_with_hooks()` vao `_render_part()` va `_run_with_fallback()`.
+- [x] Doi FFmpeg runner trong split sang `subprocess.Popen()` + poll stop flag + kill process tree.
+- [x] Xoa output part dang render neu bi dung giua chung de tranh file mp4 loi.
+- [x] Chay unit tests lien quan va `scripts/check.ps1`.

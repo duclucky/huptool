@@ -33,7 +33,7 @@ def apply_karaoke_subtitles_if_enabled(video_path, extra_args=None):
         counter += 1
 
     model_size = extra_args.get("subtitle_model_size", "medium")
-    device = extra_args.get("subtitle_device", "cuda")
+    device = extra_args.get("subtitle_device", "auto")
     compute_type = extra_args.get("subtitle_compute_type", "float16")
 
     try:
@@ -392,7 +392,7 @@ if __name__ == "__main__":
     parser.add_argument("--mtmax", type=float, default=10)
     parser.add_argument("--subtitle", action="store_true")
     parser.add_argument("--subtitle-model", default="medium", choices=["base", "small", "medium"])
-    parser.add_argument("--subtitle-device", default="cuda", choices=["cuda", "cpu", "auto"])
+    parser.add_argument("--subtitle-device", default="auto", choices=["cuda", "cpu", "auto"])
     parser.add_argument("--subtitle-compute-type", default="float16", choices=["float16", "int8"])
     args = parser.parse_args()
     

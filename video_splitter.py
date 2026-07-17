@@ -6,6 +6,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 
 from config import Config, get_tool_path
 from video_processor import VideoProcessor
@@ -328,7 +329,17 @@ class VideoSplitter:
             self._log(f"Hook: {hook_start:.2f}s -> {hook_end:.2f}s")
 
             output_path = self._safe_output_path(split_dir, f"video_part_{index:03d}.mp4")
-            if not self._render_part(video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook, subtitle_args=subtitle_args):
+            if not self._render_part(
+                video_path,
+                output_path,
+                part_start,
+                part_end,
+                hook_start,
+                hook_end,
+                add_hook,
+                subtitle_args=subtitle_args,
+                stop_callback=stop_callback,
+            ):
                 raise RuntimeError(f"Render part {index} thất bại.")
 
             self._log(f"Output: {output_path}")
@@ -364,7 +375,18 @@ class VideoSplitter:
             counter += 1
         return candidate
 
-    def _render_part(self, video_path, output_path, part_start, part_end, hook_start, hook_end, add_hook, subtitle_args=None):
+    def _render_part(
+        self,
+        video_path,
+        output_path,
+        part_start,
+        part_end,
+        hook_start,
+        hook_end,
+        add_hook,
+        subtitle_args=None,
+        stop_callback=None,
+    ):
         has_audio = self.has_audio(video_path)
         subtitle_ass_path = None
         try:
@@ -396,7 +418,7 @@ class VideoSplitter:
                 has_audio,
                 subtitle_ass_path=subtitle_ass_path,
             )
-            return self._run_with_fallback(cmd, safe_out)
+            return self._run_with_fallback(cmd, safe_out, stop_callback=stop_callback)
         finally:
             self.processor._cleanup_paths([subtitle_ass_path])
 
@@ -530,7 +552,7 @@ class VideoSplitter:
         cmd.extend(["-c:a", getattr(Config, "AUDIO_CODEC", "aac"), "-b:a", getattr(Config, "AUDIO_BITRATE", "160k"), safe_out])
         return cmd, safe_out
 
-    def _run_with_fallback(self, cmd, safe_out):
+    def _run_with_fallback(self, cmd, safe_out, stop_callback=None):
         codec_in_use = getattr(Config, "VIDEO_CODEC", "libx264")
         self._log(f"Codec render đang dùng: {codec_in_use}")
         noise_level = getattr(Config, "NOISE_LEVEL", 0)
@@ -543,7 +565,7 @@ class VideoSplitter:
                 f"bufsize {getattr(Config, 'VIDEO_BUFSIZE', '10M')}"
             )
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, timeout=18000)
+        result = self._run_ffmpeg_interruptible(cmd, safe_out, stop_callback=stop_callback)
         if result.returncode == 0:
             return True
 
@@ -555,7 +577,7 @@ class VideoSplitter:
 
         fallback_cmd1 = self._replace_encode_args(cmd, self.processor._build_video_encode_args(codec="h264_nvenc", profile="fallback"), safe_out)
         self._log("NVENC p4 lỗi, fallback thử NVENC fast...")
-        result = subprocess.run(fallback_cmd1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, timeout=18000)
+        result = self._run_ffmpeg_interruptible(fallback_cmd1, safe_out, stop_callback=stop_callback)
         if result.returncode == 0:
             return True
 
@@ -563,12 +585,58 @@ class VideoSplitter:
         self._log(result.stderr.decode("utf-8", errors="ignore"))
         fallback_cmd2 = self._replace_encode_args(cmd, self.processor._build_video_encode_args(codec="libx264"), safe_out)
         self._log("Tất cả NVENC fail, fallback sang libx264...")
-        result = subprocess.run(fallback_cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, timeout=18000)
+        result = self._run_ffmpeg_interruptible(fallback_cmd2, safe_out, stop_callback=stop_callback)
         if result.returncode != 0:
             self._log(f"FFmpeg thất bại hoàn toàn với mã thoát: {result.returncode}")
             self._log(result.stderr.decode("utf-8", errors="ignore"))
             return False
         return True
+
+    def _run_ffmpeg_interruptible(self, cmd, safe_out, stop_callback=None, timeout_seconds=18000):
+        start_time = time.monotonic()
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        while process.poll() is None:
+            if self._should_stop(stop_callback):
+                self._terminate_process_tree(process)
+                stdout, stderr = process.communicate()
+                self._remove_partial_output(safe_out)
+                raise RuntimeError("Đã dừng chia part theo yêu cầu người dùng.")
+            if time.monotonic() - start_time > timeout_seconds:
+                self._terminate_process_tree(process)
+                stdout, stderr = process.communicate()
+                self._remove_partial_output(safe_out)
+                raise subprocess.TimeoutExpired(cmd, timeout_seconds, output=stdout, stderr=stderr)
+            time.sleep(0.25)
+
+        stdout, stderr = process.communicate()
+        return subprocess.CompletedProcess(cmd, process.returncode, stdout, stderr)
+
+    def _terminate_process_tree(self, process):
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=CREATE_NO_WINDOW,
+            )
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except Exception:
+            process.kill()
+
+    def _remove_partial_output(self, output_path):
+        try:
+            if output_path and os.path.exists(output_path):
+                os.remove(output_path)
+        except OSError as exc:
+            self._log(f"Khong xoa duoc file part dang render do: {exc}")
 
     def _replace_encode_args(self, cmd, video_args, safe_out):
         prefix = cmd[: cmd.index("-c:v")]

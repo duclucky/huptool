@@ -2,6 +2,7 @@ import unittest
 
 import os
 import tempfile
+from unittest import mock
 
 from video_splitter import VideoSplitter, collect_split_video_files
 
@@ -153,6 +154,36 @@ class VideoSplitterPlanningTests(unittest.TestCase):
             )
 
         self.assertEqual(callback_paths, [manifest["parts"][0]["path"]])
+
+    def test_run_with_fallback_kills_current_ffmpeg_when_stop_requested(self):
+        class RunningProcess:
+            pid = 1234
+            returncode = None
+
+            def poll(self):
+                return None
+
+            def communicate(self):
+                self.returncode = -9
+                return b"", b""
+
+        process = RunningProcess()
+
+        class InterruptibleSplitter(VideoSplitter):
+            def __init__(self):
+                super().__init__(log_callback=None)
+                self.killed_pids = []
+
+            def _terminate_process_tree(self, running_process):
+                self.killed_pids.append(running_process.pid)
+                running_process.returncode = -9
+
+        splitter = InterruptibleSplitter()
+        with mock.patch("video_splitter.subprocess.Popen", return_value=process):
+            with self.assertRaisesRegex(RuntimeError, "Đã dừng chia part"):
+                splitter._run_with_fallback(["ffmpeg"], "partial.mp4", stop_callback=lambda: True)
+
+        self.assertEqual(splitter.killed_pids, [1234])
 
 
 if __name__ == "__main__":

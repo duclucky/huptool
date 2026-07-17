@@ -70,8 +70,8 @@ class UpdaterTests(unittest.TestCase):
 
             def read(self):
                 return json.dumps({
-                    "version": "1.4.6",
-                    "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.6/HupTool_Release.zip",
+                    "version": "1.4.7",
+                    "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.7/HupTool_Release.zip",
                 }).encode("utf-8")
 
         calls = []
@@ -92,7 +92,7 @@ class UpdaterTests(unittest.TestCase):
             log_callback=logs.append,
         )
 
-        self.assertEqual(manifest.version, "1.4.6")
+        self.assertEqual(manifest.version, "1.4.7")
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][1], 5)
         self.assertIn("Thử lại", "\n".join(logs))
@@ -140,8 +140,8 @@ class UpdaterTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             manifest = UpdateManifest(
-                version="1.4.6",
-                zip_url="https://github.com/duclucky/huptool/releases/download/v1.4.6/HupTool_Release.zip",
+                version="1.4.7",
+                zip_url="https://github.com/duclucky/huptool/releases/download/v1.4.7/HupTool_Release.zip",
             )
 
             path = download_update_package(

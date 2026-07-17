@@ -25,7 +25,7 @@ class OfflineSubtitler:
     def __init__(
         self,
         ffmpeg_path: Optional[str] = None,
-        device: str = "cuda",
+        device: str = "auto",
         compute_type: str = "float16",
         temp_dir: Optional[str] = None,
         font_name: str = "Arial",
@@ -35,6 +35,7 @@ class OfflineSubtitler:
         max_gap_seconds: float = 0.65,
         log_callback: Optional[Callable[[str], None]] = None,
         whisper_model_factory: Optional[Callable[[str, str, str], object]] = None,
+        cuda_available_factory: Optional[Callable[[], bool]] = None,
     ):
         self.ffmpeg_path = ffmpeg_path or get_tool_path("ffmpeg")
         self.device = device
@@ -47,6 +48,7 @@ class OfflineSubtitler:
         self.max_gap_seconds = max(0.0, float(max_gap_seconds))
         self.log_callback = log_callback or print
         self.whisper_model_factory = whisper_model_factory
+        self.cuda_available_factory = cuda_available_factory
 
     def burn_subtitles(self, video_path: str, output_path: str, model_size: str = "base") -> str:
         video_path = os.path.abspath(video_path)
@@ -105,9 +107,7 @@ class OfflineSubtitler:
         self.run_ffmpeg(cmd, "audio extraction")
 
     def transcribe_words(self, wav_path: str, model_size: str = "base") -> List[SubtitleWord]:
-        attempts = [(self.device, self.compute_type)]
-        if self.device in {"auto", "cuda"}:
-            attempts.append(("cpu", "int8"))
+        attempts = self.build_transcription_attempts()
 
         last_error = None
         for index, (device, compute_type) in enumerate(attempts):
@@ -127,6 +127,34 @@ class OfflineSubtitler:
                 break
 
         raise RuntimeError(f"Whisper transcription failed: {last_error}") from last_error
+
+    def build_transcription_attempts(self) -> List[tuple]:
+        device = (self.device or "auto").lower()
+        compute_type = (self.compute_type or "float16").lower()
+
+        if device == "cpu":
+            return [("cpu", "int8")]
+
+        if device == "auto":
+            if self.is_cuda_runtime_available():
+                return [("cuda", compute_type), ("cpu", "int8")]
+            self.log("Khong phat hien CUDA runtime phu hop; dang dung CPU int8 de tao sub.")
+            return [("cpu", "int8")]
+
+        attempts = [(device, compute_type)]
+        if device == "cuda":
+            attempts.append(("cpu", "int8"))
+        return attempts
+
+    def is_cuda_runtime_available(self) -> bool:
+        if self.cuda_available_factory:
+            return bool(self.cuda_available_factory())
+        try:
+            import ctranslate2
+
+            return ctranslate2.get_cuda_device_count() > 0
+        except Exception:
+            return False
 
     def load_whisper_model(self, model_size: str, device: str, compute_type: str):
         if self.whisper_model_factory:
@@ -302,7 +330,7 @@ if __name__ == "__main__":
     parser.add_argument("output_path")
     parser.add_argument("--model-size", default="medium", choices=["tiny", "base", "small", "medium", "large-v3"])
     parser.add_argument("--compute-type", default="float16")
-    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--device", default="auto")
     args = parser.parse_args()
 
     OfflineSubtitler(device=args.device, compute_type=args.compute_type).burn_subtitles(

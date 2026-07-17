@@ -73,8 +73,10 @@ class GuiSplitIntegrationTests(unittest.TestCase):
         self.assertIn("subtitle_enabled_var", gui_source)
         self.assertIn("Tạo sub", gui_source)
         self.assertIn("subtitle_model_var", gui_source)
+        self.assertIn('self.subtitle_device_var = ctk.StringVar(value="auto")', gui_source)
         self.assertIn('"subtitle_enabled"', gui_source)
         self.assertIn('"subtitle_model_size"', gui_source)
+        self.assertIn('"subtitle_device"', gui_source)
 
 
 if __name__ == "__main__":
