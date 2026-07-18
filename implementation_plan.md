@@ -285,4 +285,4 @@
 - [x] Them regression test cho `scripts/check.ps1`: phai check import `faster_whisper` va cac runtime subtitle lien quan.
 - [x] Patch spec de collect day du data/binaries/hiddenimports cua Whisper runtime.
 - [x] Patch `scripts/check.ps1` de bao thieu `faster-whisper` truoc khi user render.
-- [ ] Bump `APP_VERSION` len `1.4.8`, rebuild ZIP, verify ZIP co `faster_whisper`, cap nhat SHA, push GitHub Release.
+- [x] Bump `APP_VERSION` len `1.4.8`, rebuild ZIP, verify ZIP co `faster_whisper`, cap nhat SHA, push GitHub Release.
