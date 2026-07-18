@@ -1,6 +1,6 @@
 {
-  "version": "1.4.7",
-  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.7/HupTool_Release.zip",
-  "sha256": "ecc2acc8a650366de8013f4f637900156d1667d74053a0288ef370a8a6329e79",
-  "notes": "HupTool v1.4.7 avoids CUDA/float16 subtitle crashes on client machines and lets the split stop button interrupt the current FFmpeg render."
+  "version": "1.4.8",
+  "zip_url": "https://github.com/duclucky/huptool/releases/download/v1.4.8/HupTool_Release.zip",
+  "sha256": "f3cb942855b4e35b459f3612747c44d0ad30c751bfeb082991432ccd147eb061",
+  "notes": "HupTool v1.4.8 bundles the full faster-whisper subtitle runtime in the release package and expands environment checks for subtitle dependencies."
 }

@@ -39,12 +39,29 @@ if ($ffmpegExists -and $ffprobeExists) {
 
 # 3. Kiem tra cac thu vien Python
 Write-Host "3. Kiem tra cac thu vien Python phu thuoc..."
-$requirements = @("dotenv", "customtkinter", "pyinstaller", "playwright")
+$requirements = @(
+    "dotenv",
+    "customtkinter",
+    "pyinstaller",
+    "playwright",
+    "faster-whisper",
+    "ctranslate2",
+    "tokenizers",
+    "huggingface-hub",
+    "av",
+    "onnxruntime"
+)
 $importNames = @{
     "dotenv" = "dotenv"
     "customtkinter" = "customtkinter"
     "pyinstaller" = "PyInstaller"
     "playwright" = "playwright"
+    "faster-whisper" = "faster_whisper"
+    "ctranslate2" = "ctranslate2"
+    "tokenizers" = "tokenizers"
+    "huggingface-hub" = "huggingface_hub"
+    "av" = "av"
+    "onnxruntime" = "onnxruntime"
 }
 $missingLibs = @()
 

@@ -277,3 +277,12 @@
 - [x] Doi FFmpeg runner trong split sang `subprocess.Popen()` + poll stop flag + kill process tree.
 - [x] Xoa output part dang render neu bi dung giua chung de tranh file mp4 loi.
 - [x] Chay unit tests lien quan va `scripts/check.ps1`.
+
+### Task 28: Bundle Faster Whisper Runtime In Release Package
+
+- [x] Xac minh root cause: release ZIP co `ctranslate2`/`tokenizers` nhung khong co `faster_whisper`, nen EXE client bao `Missing faster-whisper`.
+- [x] Them regression test cho `AI_Video_Processor.spec`: phai dung `collect_all()` cho `faster_whisper`, `ctranslate2`, `tokenizers`, `huggingface_hub`, va `av`.
+- [x] Them regression test cho `scripts/check.ps1`: phai check import `faster_whisper` va cac runtime subtitle lien quan.
+- [x] Patch spec de collect day du data/binaries/hiddenimports cua Whisper runtime.
+- [x] Patch `scripts/check.ps1` de bao thieu `faster-whisper` truoc khi user render.
+- [ ] Bump `APP_VERSION` len `1.4.8`, rebuild ZIP, verify ZIP co `faster_whisper`, cap nhat SHA, push GitHub Release.

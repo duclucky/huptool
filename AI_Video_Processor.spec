@@ -3,6 +3,8 @@
 import os
 import sys
 
+from PyInstaller.utils.hooks import collect_all
+
 # Tìm tools nếu có ở thư mục hiện tại
 my_binaries = []
 for tool in ['ffmpeg.exe', 'ffprobe.exe', 'yt-dlp.exe']:
@@ -30,6 +32,23 @@ if os.path.exists('requirements.txt'):
 if os.path.exists('scripts'):
     my_datas.append(('scripts', 'scripts'))
 
+fw_datas, fw_binaries, fw_hiddenimports = collect_all('faster_whisper')
+ct2_datas, ct2_binaries, ct2_hiddenimports = collect_all('ctranslate2')
+tokenizers_datas, tokenizers_binaries, tokenizers_hiddenimports = collect_all('tokenizers')
+hub_datas, hub_binaries, hub_hiddenimports = collect_all('huggingface_hub')
+av_datas, av_binaries, av_hiddenimports = collect_all('av')
+ort_datas, ort_binaries, ort_hiddenimports = collect_all('onnxruntime')
+my_datas += fw_datas + ct2_datas + tokenizers_datas + hub_datas + av_datas + ort_datas
+my_binaries += fw_binaries + ct2_binaries + tokenizers_binaries + hub_binaries + av_binaries + ort_binaries
+subtitle_hiddenimports = (
+    fw_hiddenimports
+    + ct2_hiddenimports
+    + tokenizers_hiddenimports
+    + hub_hiddenimports
+    + av_hiddenimports
+    + ort_hiddenimports
+)
+
 tcl_root = os.path.join(python_base, 'tcl')
 for tcl_dir in ['tcl8.6', 'tk8.6']:
     tcl_dir_path = os.path.join(tcl_root, tcl_dir)
@@ -56,7 +75,9 @@ a = Analysis(
         'ctranslate2',
         'tokenizers',
         'huggingface_hub',
-    ],
+        'av',
+        'onnxruntime',
+    ] + subtitle_hiddenimports,
     hookspath=['pyinstaller_hooks'],
     hooksconfig={},
     runtime_hooks=['pyi_tkinter_runtime_hook.py'],

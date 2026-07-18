@@ -15,6 +15,16 @@ class EnvironmentSetupTests(unittest.TestCase):
         self.assertIn("compute_type='int8'", script)
         self.assertIn("scripts\\check.ps1", script)
 
+    def test_check_script_validates_subtitle_runtime_dependencies(self):
+        script = pathlib.Path("scripts/check.ps1").read_text(encoding="utf-8")
+
+        self.assertIn('"faster-whisper"', script)
+        self.assertIn('"faster-whisper" = "faster_whisper"', script)
+        self.assertIn('"ctranslate2"', script)
+        self.assertIn('"tokenizers"', script)
+        self.assertIn('"huggingface-hub"', script)
+        self.assertIn('"huggingface-hub" = "huggingface_hub"', script)
+
     def test_release_build_copies_environment_files_into_app_folder(self):
         build_script = pathlib.Path("build_nuitka.ps1").read_text(encoding="utf-8")
 
@@ -25,6 +35,12 @@ class EnvironmentSetupTests(unittest.TestCase):
     def test_pyinstaller_spec_includes_subtitle_runtime_dependencies(self):
         spec = pathlib.Path("AI_Video_Processor.spec").read_text(encoding="utf-8")
 
+        self.assertIn("collect_all", spec)
+        self.assertIn("collect_all('faster_whisper')", spec)
+        self.assertIn("collect_all('ctranslate2')", spec)
+        self.assertIn("collect_all('tokenizers')", spec)
+        self.assertIn("collect_all('huggingface_hub')", spec)
+        self.assertIn("collect_all('av')", spec)
         self.assertIn("'faster_whisper'", spec)
         self.assertIn("'ctranslate2'", spec)
         self.assertIn("requirements.txt", spec)
