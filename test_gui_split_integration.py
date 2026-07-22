@@ -78,6 +78,20 @@ class GuiSplitIntegrationTests(unittest.TestCase):
         self.assertIn('"subtitle_model_size"', gui_source)
         self.assertIn('"subtitle_device"', gui_source)
 
+    def test_has_standalone_subtitle_generation_tab(self):
+        gui_source = pathlib.Path("gui.py").read_text(encoding="utf-8")
+
+        self.assertIn('self.tab_subtitle = self.tabview.add("Tạo Sub Riêng")', gui_source)
+        self.assertIn("subtitle_input_dir", gui_source)
+        self.assertIn("subtitle_output_dir", gui_source)
+        self.assertIn("select_standalone_subtitle_input", gui_source)
+        self.assertIn("select_standalone_subtitle_output", gui_source)
+        self.assertIn("start_standalone_subtitle_batch", gui_source)
+        self.assertIn("stop_standalone_subtitle_batch", gui_source)
+        self.assertIn("_run_standalone_subtitle_batch", gui_source)
+        self.assertIn("OfflineSubtitler", gui_source)
+        self.assertIn('f"sub_{base}"', gui_source)
+
 
 if __name__ == "__main__":
     unittest.main()

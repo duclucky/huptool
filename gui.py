@@ -137,6 +137,7 @@ class App(ctk.CTk):
         self.log_queue = queue.Queue()
         self.is_rendering = False
         self.split_stop_event = threading.Event()
+        self.subtitle_stop_event = threading.Event()
         self.poll_log_queue()
 
         import licensing
@@ -495,6 +496,7 @@ class App(ctk.CTk):
         
         self.tab_main = self.tabview.add("Chức năng chính")
         self.tab_download = self.tabview.add("Tải Video Tự Động")
+        self.tab_subtitle = self.tabview.add("Tạo Sub Riêng")
         self.tab_guide = self.tabview.add("Hướng dẫn sử dụng")
         
         self.tab_main.grid_columnconfigure((0, 1), weight=1)
@@ -524,6 +526,68 @@ class App(ctk.CTk):
 
         self.console = ctk.CTkTextbox(self.tab_main, wrap="word", font=("Consolas", 12))
         self.console.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
+        # Tab: Tạo sub riêng cho video đã chỉnh sửa
+        self.tab_subtitle.grid_columnconfigure((0, 1), weight=1)
+        self.tab_subtitle.grid_rowconfigure(4, weight=1)
+
+        self.subtitle_input_dir = ctk.StringVar(value=Config.INPUT_DIR)
+        self.subtitle_output_dir = ctk.StringVar(value=Config.OUTPUT_DIR)
+
+        ctk.CTkLabel(self.tab_subtitle, text="Input folder", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, padx=10, pady=(15, 4), sticky="w"
+        )
+        ctk.CTkLabel(self.tab_subtitle, text="Output folder", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=1, padx=10, pady=(15, 4), sticky="w"
+        )
+
+        self.subtitle_input_btn = ctk.CTkButton(
+            self.tab_subtitle,
+            text=self._format_folder_cell(self.subtitle_input_dir.get()),
+            command=self.select_standalone_subtitle_input,
+        )
+        self.subtitle_input_btn.grid(row=1, column=0, padx=10, pady=4, sticky="ew")
+
+        self.subtitle_output_btn = ctk.CTkButton(
+            self.tab_subtitle,
+            text=self._format_folder_cell(self.subtitle_output_dir.get()),
+            command=self.select_standalone_subtitle_output,
+        )
+        self.subtitle_output_btn.grid(row=1, column=1, padx=10, pady=4, sticky="ew")
+
+        self.subtitle_status_lbl = ctk.CTkLabel(
+            self.tab_subtitle,
+            text="Sẵn sàng tạo sub.",
+            anchor="w",
+        )
+        self.subtitle_status_lbl.grid(row=2, column=0, columnspan=2, padx=10, pady=(8, 0), sticky="ew")
+
+        subtitle_btn_frame = ctk.CTkFrame(self.tab_subtitle, fg_color="transparent")
+        subtitle_btn_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+        subtitle_btn_frame.grid_columnconfigure((0, 1), weight=1)
+
+        self.subtitle_start_btn = ctk.CTkButton(
+            subtitle_btn_frame,
+            text="BẮT ĐẦU TẠO SUB",
+            command=self.start_standalone_subtitle_batch,
+            height=42,
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self.subtitle_start_btn.grid(row=0, column=0, padx=(0, 6), sticky="ew")
+
+        self.subtitle_stop_btn = ctk.CTkButton(
+            subtitle_btn_frame,
+            text="DỪNG TẠO SUB",
+            command=self.stop_standalone_subtitle_batch,
+            state="disabled",
+            height=42,
+            fg_color="#d32f2f",
+            hover_color="#b71c1c",
+        )
+        self.subtitle_stop_btn.grid(row=0, column=1, padx=(6, 0), sticky="ew")
+
+        self.subtitle_console = ctk.CTkTextbox(self.tab_subtitle, wrap="word", font=("Consolas", 12))
+        self.subtitle_console.grid(row=4, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
         
         # Tab 2: Hướng dẫn sử dụng
         self.tab_guide.grid_columnconfigure(0, weight=1)
@@ -1149,6 +1213,152 @@ BƯỚC 3: XUẤT FILE
                 self.is_rendering = False
                 self.log_queue.put(lambda: self.start_button.configure(state="normal", text="START BATCH"))
                 self.log_queue.put(lambda: self.stop_split_btn.configure(state="disabled", text="Dừng cắt"))
+
+    def select_standalone_subtitle_input(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.subtitle_input_dir.set(folder)
+            self.subtitle_input_btn.configure(text=self._format_folder_cell(folder))
+
+    def select_standalone_subtitle_output(self):
+        folder = filedialog.askdirectory()
+        if folder:
+            self.subtitle_output_dir.set(folder)
+            self.subtitle_output_btn.configure(text=self._format_folder_cell(folder))
+
+    def append_subtitle_log(self, text):
+        def insert_log():
+            self.subtitle_console.insert("end", str(text).rstrip() + "\n")
+            self.subtitle_console.see("end")
+        self.log_queue.put(insert_log)
+
+    def clear_subtitle_log(self):
+        self.log_queue.put(lambda: self.subtitle_console.delete("0.0", "end"))
+
+    def _standalone_subtitle_output_path(self, output_dir, video_path):
+        base = os.path.splitext(os.path.basename(video_path))[0]
+        output_name = f"sub_{base}"
+        candidate = os.path.join(output_dir, output_name + ".mp4")
+        suffix = 1
+        while os.path.exists(candidate):
+            candidate = os.path.join(output_dir, f"{output_name}_{suffix}.mp4")
+            suffix += 1
+        return candidate
+
+    def start_standalone_subtitle_batch(self):
+        if getattr(self, "is_rendering", False):
+            self.subtitle_status_lbl.configure(text="App đang xử lý tác vụ khác.", text_color="red")
+            return
+
+        input_dir = self.subtitle_input_dir.get().strip()
+        output_dir = self.subtitle_output_dir.get().strip()
+        if not os.path.isdir(input_dir):
+            self.subtitle_status_lbl.configure(text="Folder input không hợp lệ.", text_color="red")
+            return
+        if not output_dir:
+            self.subtitle_status_lbl.configure(text="Vui lòng chọn folder output.", text_color="red")
+            return
+
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except OSError as exc:
+            self.subtitle_status_lbl.configure(text=f"Không tạo được output: {exc}", text_color="red")
+            return
+
+        self.is_rendering = True
+        self.subtitle_stop_event.clear()
+        self.clear_subtitle_log()
+        self.subtitle_status_lbl.configure(text="Đang tạo sub...", text_color="yellow")
+        self.subtitle_start_btn.configure(state="disabled", text="ĐANG TẠO SUB...")
+        self.subtitle_stop_btn.configure(state="normal", text="DỪNG TẠO SUB")
+
+        subtitle_args = {
+            "model_size": self.subtitle_model_var.get(),
+            "device": self.subtitle_device_var.get(),
+            "compute_type": self.subtitle_compute_var.get(),
+        }
+        thread = threading.Thread(
+            target=self._run_standalone_subtitle_batch,
+            args=(input_dir, output_dir, subtitle_args),
+            daemon=True,
+        )
+        thread.start()
+
+    def stop_standalone_subtitle_batch(self):
+        if not getattr(self, "is_rendering", False):
+            return
+        self.subtitle_stop_event.set()
+        self.append_subtitle_log("Đã nhận lệnh dừng tạo sub. Tool sẽ dừng trước video kế tiếp.")
+        self.subtitle_stop_btn.configure(state="disabled", text="ĐANG DỪNG...")
+
+    def _run_standalone_subtitle_batch(self, input_dir, output_dir, subtitle_args):
+        try:
+            from video_splitter import collect_split_video_files
+            from offline_subtitler import OfflineSubtitler
+
+            videos = collect_split_video_files(input_dir)
+            total = len(videos)
+            if not videos:
+                self.append_subtitle_log("Không tìm thấy video hợp lệ trong folder input.")
+                self.log_queue.put(lambda: self.subtitle_status_lbl.configure(text="Không có video hợp lệ.", text_color="yellow"))
+                return
+
+            self.append_subtitle_log(f"Bắt đầu tạo sub: {total} video")
+            self.append_subtitle_log(f"Input: {input_dir}")
+            self.append_subtitle_log(f"Output: {output_dir}")
+
+            completed = 0
+            errors = 0
+            for index, video_path in enumerate(videos, start=1):
+                if self.subtitle_stop_event.is_set():
+                    self.append_subtitle_log("Đã dừng trước khi xử lý video kế tiếp.")
+                    break
+
+                output_path = self._standalone_subtitle_output_path(output_dir, video_path)
+                name = os.path.basename(video_path)
+                self.append_subtitle_log(f"\n[{index}/{total}] {name}")
+                self.log_queue.put(
+                    lambda i=index, t=total: self.subtitle_status_lbl.configure(
+                        text=f"Đang tạo sub {i}/{t}...",
+                        text_color="yellow",
+                    )
+                )
+
+                try:
+                    subtitler = OfflineSubtitler(
+                        device=subtitle_args.get("device", "auto"),
+                        compute_type=subtitle_args.get("compute_type", "float16"),
+                        log_callback=self.append_subtitle_log,
+                    )
+                    subtitler.burn_subtitles(
+                        video_path,
+                        output_path,
+                        model_size=subtitle_args.get("model_size", "medium"),
+                    )
+                    completed += 1
+                    self.append_subtitle_log(f"Xong: {output_path}")
+                except Exception as exc:
+                    errors += 1
+                    self.append_subtitle_log(f"Lỗi tạo sub {name}: {exc}")
+
+            if self.subtitle_stop_event.is_set():
+                status_text = f"Đã dừng. Xong {completed}/{total}, lỗi {errors}."
+                status_color = "yellow"
+            elif errors:
+                status_text = f"Hoàn tất nhưng có lỗi: xong {completed}/{total}, lỗi {errors}."
+                status_color = "yellow"
+            else:
+                status_text = f"Hoàn tất tạo sub: {completed}/{total} video."
+                status_color = "#00AA00"
+            self.log_queue.put(lambda: self.subtitle_status_lbl.configure(text=status_text, text_color=status_color))
+            self.append_subtitle_log(status_text)
+        except Exception as exc:
+            self.append_subtitle_log(f"Lỗi hệ thống tạo sub: {exc}")
+            self.log_queue.put(lambda: self.subtitle_status_lbl.configure(text="Lỗi hệ thống tạo sub.", text_color="red"))
+        finally:
+            self.is_rendering = False
+            self.log_queue.put(lambda: self.subtitle_start_btn.configure(state="normal", text="BẮT ĐẦU TẠO SUB"))
+            self.log_queue.put(lambda: self.subtitle_stop_btn.configure(state="disabled", text="DỪNG TẠO SUB"))
 
     # ==========================================
     # CÁC HÀM CHO TAB TẢI VIDEO

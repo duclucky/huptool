@@ -286,3 +286,12 @@
 - [x] Patch spec de collect day du data/binaries/hiddenimports cua Whisper runtime.
 - [x] Patch `scripts/check.ps1` de bao thieu `faster-whisper` truoc khi user render.
 - [x] Bump `APP_VERSION` len `1.4.8`, rebuild ZIP, verify ZIP co `faster_whisper`, cap nhat SHA, push GitHub Release.
+
+### Task 29: Standalone Subtitle Generation Tab
+
+- [x] Them regression test cho `gui.py`: co tab `Tao Sub Rieng`, input/output folder controls, nut bat dau, nut dung, va handler `_run_standalone_subtitle_batch`.
+- [x] Them helper chon folder input/output rieng, khong dung folder pair cua batch render.
+- [x] Them batch runner doc lap dung `OfflineSubtitler.burn_subtitles()` cho tung video, khong wash/merge/cut.
+- [x] Output file dang `sub_<ten_video>.mp4` trong folder output, neu trung ten thi them suffix so.
+- [x] Dung theo yeu cau user truoc video ke tiep bang `subtitle_stop_event`.
+- [x] Chay unit tests lien quan, py_compile, va `scripts/check.ps1`.

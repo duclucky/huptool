@@ -2,6 +2,7 @@ import hashlib
 import importlib
 import json
 import os
+import pathlib
 import tempfile
 import unittest
 from urllib.error import URLError
@@ -29,6 +30,38 @@ class UpdaterTests(unittest.TestCase):
                 os.environ.pop("HUP_UPDATE_MANIFEST_URL", None)
             else:
                 os.environ["HUP_UPDATE_MANIFEST_URL"] = old_value
+            import app_version
+            importlib.reload(app_version)
+
+    def test_update_manifest_url_can_come_from_pyinstaller_internal_dir(self):
+        old_env = os.environ.pop("HUP_UPDATE_MANIFEST_URL", None)
+        import config
+
+        original_get_app_dir = config.get_app_dir
+        original_get_internal_dir = config.get_internal_dir
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                internal_dir = pathlib.Path(tmp) / "_internal"
+                internal_dir.mkdir()
+                (internal_dir / "update_manifest_url.txt").write_text(
+                    "https://example.com/internal/latest.json",
+                    encoding="utf-8",
+                )
+                config.get_app_dir = lambda: tmp
+                config.get_internal_dir = lambda: str(internal_dir)
+
+                import app_version
+
+                app_version = importlib.reload(app_version)
+                self.assertEqual(
+                    app_version.get_update_manifest_url(),
+                    "https://example.com/internal/latest.json",
+                )
+        finally:
+            config.get_app_dir = original_get_app_dir
+            config.get_internal_dir = original_get_internal_dir
+            if old_env is not None:
+                os.environ["HUP_UPDATE_MANIFEST_URL"] = old_env
             import app_version
             importlib.reload(app_version)
 
